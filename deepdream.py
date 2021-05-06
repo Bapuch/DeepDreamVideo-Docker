@@ -509,7 +509,7 @@ def extract_video(video, ext, frame_dir):
     # output = Popen(
     #     "ffmpeg -loglevel quiet -i {} -f image2 {}/img_%4d.jpg".format(
     #         video, output_dir), shell=True, stdout=PIPE).stdout.read()
-
+    make_sure_path_exists(frame_dir)
     print(Popen(f'ffmpeg -i {video} -f image2 {frame_dir}/%08d.{ext}', shell=True,
                            stdout=PIPE).stdout.read())
 
