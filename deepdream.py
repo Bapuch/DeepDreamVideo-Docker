@@ -513,13 +513,20 @@ def extract_video(video, ext, frame_dir):
     print(Popen(f'ffmpeg -i {video} -f image2 {frame_dir}/%08d.{ext}', shell=True,
                            stdout=PIPE).stdout.read())
 
-def create_video(video, frame_rate=24):
-    output_dir = _output_video_dir(video)
+    print(f'Frames created to {frame_dir}')
+
+def create_video(frames_directory, original_video, ext, output_video,frame_rate=24):
+    # make_sure_path_exists(frame_dir)
+
+    # output = Popen((
+    #     f"ffmpeg -loglevel quiet -r {frame_rate} -f image2 -pattern_type glob -i {output_dir}/* {video}.mp4"),
+    #     shell=True, stdout=PIPE).stdout.read()
+    
     output = Popen((
-        "ffmpeg -loglevel quiet -r {} -f image2 -pattern_type glob "
-        "-i \"{}/img_*.jpg\" {}.mp4").format(
-            frame_rate, output_dir, video),
+        f"./frames2movie.sh ffmpeg {frames_directory} {original_video} {ext} {output_video}"),
         shell=True, stdout=PIPE).stdout.read()
+        # "./3_frames2movie.sh [ffmpeg|avconv|mplayer] [frames_directory] [original_video_with_sound] [png|jpg]"
+    print("OUTPUT =", output)
 
 
 if __name__ == '__main__':
@@ -560,7 +567,14 @@ if __name__ == '__main__':
         video_name, _ = os.path.splitext(os.path.basename(args.extract))
         input_dir = os.path.join(input_dir, video_name)
         output_dir = os.path.join(output_dir, video_name)
-        extract_video(args.extract, args.image_type, input_dir)
+        # extract_video(args.extract, args.image_type, input_dir)
+
+        t = str(time.time()).replace('.', '_')
+        videos_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/dream_video")
+        make_sure_path_exists(videos_dir)
+        output_video = os.path.join(videos_dir, f"{video_name}-DeepDream__{t}")
+
+        create_video(input_dir, args.extract, args.image_type, output_video)
 
     
     # main(input_dir=input_dir, 
