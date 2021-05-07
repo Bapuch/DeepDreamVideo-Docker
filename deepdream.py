@@ -690,8 +690,8 @@ if __name__ == '__main__':
     input_dir = os.environ.get('DEEPDREAM_INPUT', args.input_dir)
     output_dir = os.environ.get('DEEPDREAM_OUTPUT', args.output_dir)
     docker_path = os.environ.get('DEEPDREAM_MODELS')
-    if docker_path:
-        model_path = args.model_path.replace('caffe', docker_path)
+
+    model_path = args.model_path.replace('caffe', docker_path) if docker_path else args.model_path
 
 
 
@@ -759,7 +759,7 @@ if __name__ == '__main__':
 
     # recreate the video
     if args.mode == 0 or args.mode == 3:
-        print('\nExtraction frames..')
+        print('\nCreating video..')
 
         # if args.extract:
         t = str(time.time()).replace('.', '_')

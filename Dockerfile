@@ -19,7 +19,8 @@ ADD . /deepdream/caffe/scripts
 ADD ./deepdream.py /deepdream.py
 ADD ./frames2movie.sh /frames2movie.sh
 
-RUN apt-get install -y libav-tools
+RUN apt-get update && apt-get install -y libav-tools
+# RUN apt-get update && apt-get install -y mplayer
 # RUN apt-get install avconv -y
 # RUN apt install ffmpeg -y
 

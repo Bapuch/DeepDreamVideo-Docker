@@ -18,7 +18,7 @@ OUTFILE="$5.mp4"
 
 TMPAUDIO="/tmp/tmp.aac"
 TMPVIDEO="/tmp/tmp.mp4"
-
+TMPVIDEO2="/tmp/tmp2.mp4"
 
 if [ -f ${OUTFILE} ]; then
     rm "${OUTFILE}"
@@ -26,9 +26,11 @@ fi
 
 if [ "avconv" == "$1" ]; then
     AVCONV=$(which avconv)
-    BITRATE=$($AVCONV -i "$3" 2>&1 | sed -n "s/.*, \([0-9].*\) kb\/s.*/\1/p")
+    BITRATE=$($AVCONV -i "$3" -strict experimental "$TMPVIDEO2" 2>&1 | sed -n "s/.*, \([0-9].*\) kb\/s.*/\1/p")
     echo "BITRATE : $BITRATE  ---"
     FPS=$($AVCONV -i "$3" 2>&1 | sed -n "s/.*, \(.*\) fp.*/\1/p")
+    echo "FPS : $FPS  ---"
+
 
     "${AVCONV}" -r "${FPS}" -i "${INFILES}" -b:v "${BITRATE}k" -c:v "${CODEC}" -vf "format=yuv420p" "${TMPVIDEO}" -y
     "${AVCONV}" -i "$3" -strict -2 "${TMPAUDIO}" -y
@@ -38,6 +40,7 @@ if [ "avconv" == "$1" ]; then
     else
         "${AVCONV}"                  -i "${TMPVIDEO}" -strict -2 -c:v copy -shortest "${OUTFILE}"
     fi
+
 elif [ "mplayer" == "$1" ]; then
     MENCODER=$(which mencoder)
     MPLAYER=$(which mplayer)
@@ -71,9 +74,10 @@ rm /tmp/music.wav
 #echo "/tmp/musicshort.wav removed"
 rm "${TMPVIDEO}"
 #echo "${TMPVIDEO} removed"
+rm "${TMPVIDEO2}"
+
 
 if [ -s ${OUTFILE} ]; then
     echo "saved movie as: ${OUTFILE}"
 fi
 
-echo "saved movie as: ${OUTFILE}"
