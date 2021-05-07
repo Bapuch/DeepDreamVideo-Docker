@@ -1,15 +1,15 @@
 #!/bin/bash
 if [ $# -ne 5 ]; then
     echo "please provide the directory of the processed frames"
-    echo "./3_frames2movie.sh [ffmpeg|avconv|mplayer] [frames_directory] [original_video_with_sound] [png|jpg]"
+    echo "./frames2movie.sh [ffmpeg|avconv|mplayer] [frames_directory] [original_video_with_sound] [png|jpg]"
     exit 1
 fi
 
 if [ "png" == "$4" ]; then
-    INFILES="$2/%08d.png"
+    INFILES="$2/dream_frame_%08d.png"
     MENCODERCOMMAND="type=png"
 else
-    INFILES="$2/%08d.jpg"
+    INFILES="$2/dream_frame_%08d.jpg"
     MENCODERCOMMAND="type=jpg"
 fi
 
@@ -27,6 +27,7 @@ fi
 if [ "avconv" == "$1" ]; then
     AVCONV=$(which avconv)
     BITRATE=$($AVCONV -i "$3" 2>&1 | sed -n "s/.*, \([0-9].*\) kb\/s.*/\1/p")
+    echo "BITRATE : $BITRATE  ---"
     FPS=$($AVCONV -i "$3" 2>&1 | sed -n "s/.*, \(.*\) fp.*/\1/p")
 
     "${AVCONV}" -r "${FPS}" -i "${INFILES}" -b:v "${BITRATE}k" -c:v "${CODEC}" -vf "format=yuv420p" "${TMPVIDEO}" -y
@@ -74,3 +75,5 @@ rm "${TMPVIDEO}"
 if [ -s ${OUTFILE} ]; then
     echo "saved movie as: ${OUTFILE}"
 fi
+
+echo "saved movie as: ${OUTFILE}"

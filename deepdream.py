@@ -25,6 +25,7 @@ import time
 
 from subprocess import Popen, PIPE
 import errno
+from random import randint
 
 
 # -- Argument Parsing
@@ -36,8 +37,8 @@ def get_parser():
         type=str,
         help='Input directory where extracted frames are stored',
         required='--extract' not in sys.argv and '-e' not in sys.argv,
-        default='/data/input_frames',
-        dest='output_dir')
+        default='data/input_frames',
+        dest='input_dir')
 
     parser.add_argument(
         '-e','--extract',
@@ -50,10 +51,8 @@ def get_parser():
         '-o','--output',
         type=str,
         help='Output directory where processed frames are to be stored',
-        default='/data/output_frames',
-        dest='input_dir')
-
-
+        default='data/output_frames',
+        dest='output_dir')
 
     parser.add_argument(
         '-it','--image_type',
@@ -68,7 +67,7 @@ def get_parser():
         type=str,
         dest='model_path',
         required=False,
-        default='../caffe/models/bvlc_googlenet/',
+        default='caffe/models/bvlc_googlenet/',
         help='Model directory to use')
     parser.add_argument(
         '-m', '--model_name',
@@ -99,7 +98,7 @@ def get_parser():
         required=False,
         help='Iterations. Default: 10',
         default=10,
-        dest='octavescale',)
+        )
     parser.add_argument(
         '-j','--jitter',
         type=int,
@@ -114,7 +113,8 @@ def get_parser():
         required=False,
         help='Step Size. Default: 1.5',
         default=1.5,
-        dest='stepsize',)
+        dest='step_size',)
+
     parser.add_argument(
         '-b','--blend',
         type=str,
@@ -136,29 +136,37 @@ def get_parser():
         type=int,
         required=False,
         help="verbosity [1-3]",
-        default=2,
+        default=1,
         dest='verbose',)
     parser.add_argument(
-        '-gi', '--guide_image',
+        '-gi', '--guide-image',
         required=False,
         type=str,
         help="path to guide image",
         default=None,
         dest='guide_image',)
     parser.add_argument(
-        '-sf', '--start_frame',
+        '-sf', '--start-frame',
         type=int,
         required=False,
         help="starting frame number",
         default=1,
         dest='start_frame',)
     parser.add_argument(
-        '-ef', '--end_frame',
+        '-ef', '--end-frame',
         type=int,
         required=False,
         help="end frame number",
         default=None,
         dest='end_frame',)
+    
+    parser.add_argument(
+        '--mode',
+        type=int,
+        required=False,
+        help="What action(s) to perform:\n- 0: (default) run all (create frames, dream and recreate the video)\n- 1: exctract frames only\n- 2: run deepdream only (make sure frames are already where they should be)\n- 3: make the video from already existing processed frames",
+        default=0,
+        dest='mode',)
 
 
     return parser
@@ -207,6 +215,15 @@ def showarray(a, fmt='jpeg'):
 def objective_L2(dst):
     dst.diff[:] = dst.data 
 
+def objective_guide(dst,guide_features):
+    x = dst.data[0].copy()
+    y = guide_features
+    ch = x.shape[0]
+    x = x.reshape(ch,-1)
+    y = y.reshape(ch,-1)
+    A = x.T.dot(y) # compute the matrix of dot-products with guide features
+    dst.diff[0].reshape(ch,-1)[:] = y[:,A.argmax(1)] # select ones that match best
+
 def make_step(net,
               step_size=1.5,
               end='inception_4c/output', 
@@ -237,9 +254,7 @@ def make_step(net,
         src.data[:] = np.clip(src.data, -bias, 255-bias)  
 
 
-def deepdream(net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, 
-              end='inception_4c/output', clip=True, image_output=None,
-              save_image=None, **step_params):
+def deepdream(net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, end='inception_4c/output', clip=True, image_output=None, save_image=None, verbose=1, message=None, **step_params):
  
     # prepare base images for all octaves
     octaves = [preprocess(net, base_img)]
@@ -275,22 +290,24 @@ def deepdream(net, base_img, iter_n=10, octave_n=4, octave_scale=1.4,
             totaltime += difference
 
             # save last image (this could be modified to save sequence or other)
-            if save_image is not None and image_output is not None: #and i==iter_n-1
-                image_file = f"{image_output}/o{octave}_i{i}_{end.replace('/', '-')}-{difference}s{save_image}"
+            # if save_image is not None and image_output is not None: #and i==iter_n-1
+            #     image_file = f"{image_output}/o{octave}_i{i}_{end.replace('/', '-')}-{difference}s{save_image}"
 
-                # The keys have directory / in them, may need to mkdir
-                image_dir = os.path.dirname(image_file)
-                if not os.path.exists(image_dir):
-                    # not entirely safe way to do it, but ok for start_time
-                    os.makedirs(image_dir)
+            #     # The keys have directory / in them, may need to mkdir
+            #     image_dir = os.path.dirname(image_file)
+            #     if not os.path.exists(image_dir):
+            #         # not entirely safe way to do it, but ok for start_time
+            #         os.makedirs(image_dir)
 
-                PIL.Image.fromarray(np.uint8(vis)).save(image_file)
+            #     PIL.Image.fromarray(np.uint8(vis)).save(image_file)
 
             if not clip: # adjust image contrast if clipping is disabled
                 vis = vis*(255.0/np.percentile(vis, 99.98))
             # showarray(vis)
-            print("Octave:", octave, " - Iter:", i, " - Layer:", end, " - Shape:", vis.shape)
-            clear_output(wait=True)
+            if verbose > 1:
+                # print(message)
+                print("Octave:", octave, " - Iter:", i, " - Layer:", end, " - Shape:", vis.shape)
+                clear_output(wait=True)
             
         # extract details produced on the current octave
         detail = src.data[0]-octave_base
@@ -298,14 +315,90 @@ def deepdream(net, base_img, iter_n=10, octave_n=4, octave_scale=1.4,
     # returning the resulting image
     return deprocess(net, src.data[0])
 
-def objective_guide(dst):
-    x = dst.data[0].copy()
-    y = dst.data[0].copy()
-    ch = x.shape[0]
-    x = x.reshape(ch,-1)
-    y = y.reshape(ch,-1)
-    A = x.T.dot(y) # compute the matrix of dot-products with guide features
-    dst.diff[0].reshape(ch,-1)[:] = y[:,A.argmax(1)] # select ones that match best
+
+# --------------
+# Guided Dreaming
+# --------------
+def make_step_guided(net, step_size=1.5, end='inception_4c/output',
+              jitter=32, clip=True, objective_fn=objective_guide, **objective_params):
+    '''Basic gradient ascent step.'''
+
+    #if objective_fn is None:
+    #    objective_fn = objective_L2
+
+    src = net.blobs['data'] # input image is stored in Net's 'data' blob
+    dst = net.blobs[end]
+
+    ox, oy = np.random.randint(-jitter, jitter+1, 2)
+    src.data[0] = np.roll(np.roll(src.data[0], ox, -1), oy, -2) # apply jitter shift
+
+    net.forward(end=end)
+    objective_fn(dst, **objective_params)  # specify the optimization objective
+    net.backward(start=end)
+    g = src.diff[0]
+    # apply normalized ascent step to the input image
+    src.data[:] += step_size/np.abs(g).mean() * g
+
+    src.data[0] = np.roll(np.roll(src.data[0], -ox, -1), -oy, -2) # unshift image
+
+    if clip:
+        bias = net.transformer.mean['data']
+        src.data[:] = np.clip(src.data, -bias, 255-bias)
+
+def deepdream_guided(net, base_img, iter_n=10, octave_n=4, octave_scale=1.4, end='inception_4c/output', clip=True, verbose=1, objective_fn=objective_guide, **step_params):
+
+    #if objective_fn is None:
+    #    objective_fn = objective_L2
+
+    # prepare base images for all octaves
+    octaves = [preprocess(net, base_img)]
+    for i in range(octave_n-1):
+        octaves.append(nd.zoom(octaves[-1], (1, 1.0/octave_scale,1.0/octave_scale), order=1))
+
+    src = net.blobs['data']
+    detail = np.zeros_like(octaves[-1]) # allocate image for network-produced details
+
+    now = time.time()
+    totaltime = 0
+
+    for octave, octave_base in enumerate(octaves[::-1]):
+        h, w = octave_base.shape[-2:]
+        if octave > 0:
+            # upscale details from the previous octave
+            h1, w1 = detail.shape[-2:]
+            detail = nd.zoom(detail, (1, 1.0*h/h1,1.0*w/w1), order=1)
+
+        src.reshape(1,3,h,w) # resize the network's input image size
+        src.data[0] = octave_base+detail
+        for i in range(iter_n):
+            make_step_guided(net, end=end, clip=clip, objective_fn=objective_fn, **step_params)
+
+            later = time.time()
+            difference = int(later - now)
+            totaltime += difference
+
+            # visualization
+            vis = deprocess(net, src.data[0])
+            if not clip: # adjust image contrast if clipping is disabled
+                vis = vis*(255.0/np.percentile(vis, 99.98))
+            # if verbose == 3:
+            #     if image_type == "png":
+            #         showarrayHQ(vis)
+            #     elif image_type == "jpg":
+            #         showarray(vis)
+            #     print(octave, i, end, vis.shape)
+            #     clear_output(wait=True)
+            # if verbose == 2:
+            #     print(octave, i, end, vis.shape)
+            if verbose > 1:
+                # print(message)
+                print("Octave:", octave, " - Iter:", i, " - Layer:", end, " - Shape:", vis.shape)
+
+        # extract details produced on the current octave
+        detail = src.data[0]-octave_base
+    # returning the resulting image
+    return deprocess(net, src.data[0])
+
 
     
     
@@ -325,70 +418,46 @@ layersloop = ['inception_4c/output', 'inception_4d/output',
               'inception_5b/output', 'inception_5a/output',
               'inception_4e/output', 'inception_4d/output',
               'inception_4c/output']
-# def main():
-def main(input_dir, output, image_type, model_path, model_name, octaves, octave_scale,
-         iterations, jitter, stepsize, blend, layers, guide_image, start_frame, end_frame, verbose,
-        base_name):
+
+def prepare_guide(net, image, end="inception_4c/output", maxW=224, maxH=224):
+        # grab dimensions of input image
+        (w, h) = image.size
+
+        # GoogLeNet was trained on images with maximum width and heights
+        # of 224 pixels -- if either dimension is larger than 224 pixels,
+        # then we'll need to do some resizing
+        if h > maxH or w > maxW:
+            # resize based on width
+            if w > h:
+                r = maxW / float(w)
+
+            # resize based on height
+            else:
+                r = maxH / float(h)
+
+            # resize the image
+            (nW, nH) = (int(r * w), int(r * h))
+            image = np.float32(image.resize((nW, nH), PIL.Image.BILINEAR))
+
+        (src, dst) = (net.blobs["data"], net.blobs[end])
+        src.reshape(1, 3, nH, nW)
+        src.data[0] = preprocess(net, image)
+        net.forward(end=end)
+        guide_features = dst.data[0].copy()
+
+        return guide_features
 
 
 
+def main(input_dir, output_dir, image_type, model_path, model_name, octaves, octave_scale,
+         iterations, jitter, step_size, blend, layers, guide_image, start_frame, end_frame, verbose):
 
+    # make_sure_path_exists(input_dir)
+    make_sure_path_exists(output_dir)
 
-
-#     tmpdir = tempfile.mkdtemp()
-#     models_dir = get_envar('DEEPDREAM_MODELS', args.models_dir)
-#     frames = int(os.environ.get('DEEPDREAM_FRAMES', args.frames))
-#     s = float(os.environ.get('DEEPDREAM_SCALE_COEFF', args.s)) # scale coefficient
-    scale_coef = 0.5
-#     image_dir = os.environ.get('DEEPDREAM_IMAGES', args.image_dir)
-#     image_output = args.image_output or os.environ.get('DEEPDREAM_OUTPUT', tmpdir)
-#     image_input =  os.environ.get('DEEPDREAM_INPUT', args.input) or '/deepdream/deepdream/sky1024px.jpg'
-
-
-    make_sure_path_exists(input_dir)
-    make_sure_path_exists(output)
-    
-     # let max nr of frames
-    nrframes =len([name for name in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, name))])
-    if nrframes == 0:
-        print("no frames to process found")
-        sys.exit(0)
-    
-#     # -- Input Checking
-                        
-#     if not os.path.exists(image_output):
-#         os.makedirs(image_output)
-
-#     if not os.path.exists(image_input):
-
-#         # Second try - user mounted to data, but image is in $PWD
-#         image_input = "/data/%s" % image_input
-
-#         if not os.path.exists(image_input):
-#             print('Cannot find %s.' % image_input)
-#             sys.exit(1)
-
-#     lookup = find_model(models_dir, 'bvlc_googlenet')
-
-#     # -- Loading DNN Model
-
-#     # Patching model to be able to compute gradients.
-#     # Note that you can also manually add "force_backward: true" line to "deploy.prototxt".
-#     model = caffe.io.caffe_pb2.NetParameter()
-#     text_format.Merge(open(lookup['net_fn']).read(), model)
-#     model.force_backward = True
-
-#     tmp_proto = '%s/tmp.prototxt' % tmpdir
-#     open(tmp_proto, 'w').write(str(model))
-
-#     net = caffe.Classifier(tmp_proto, lookup['param_fn'],
-#                            mean = np.float32([104.0, 116.0, 122.0]), # ImageNet mean, training set dependent
-#                            channel_swap = (2,1,0)) # the reference model has channels in BGR order instead of RGB
-
-    
     #Load DNN
     net_fn   = model_path + 'deploy.prototxt'
-    param_fn = model_path + model_name #
+    param_fn = model_path + model_name
 
     model = caffe.io.caffe_pb2.NetParameter()
     text_format.Merge(open(net_fn).read(), model)
@@ -398,10 +467,16 @@ def main(input_dir, output, image_type, model_path, model_name, octaves, octave_
     net = caffe.Classifier('tmp.prototxt', param_fn,
                            mean = np.float32([104.0, 116.0, 122.0]), # ImageNet mean, training set dependent
                            channel_swap = (2,1,0)) # the reference model has channels in BGR order instead of RGB
+    
+    # let max nr of frames
+    nrframes =len([name for name in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, name))])
 
+    if nrframes == 0:
+        print("no frames to process found")
+        sys.exit(0)
     
     # --- Dream!
-    start_time = time.time()
+    frame_start_time = time.time()
     totaltime = 0
 
 #     input_name = os.path.basename(image_input)
@@ -418,18 +493,36 @@ def main(input_dir, output, image_type, model_path, model_name, octaves, octave_
 #     print('BASE FRAME ')
 #     print('>> Frame Time: ' + str(difference) + 's  ---  Total Time: ' + str(difference) + 's')
 #     print('***************************************')
+    frame_i = 1 if start_frame is None else int(start_frame)
+    # if start_frame is None:
+    #     frame_i = 1
+    # else:
+    #     frame_i = int(start_frame)
+
+    nrframes = (nrframes+1) if end_frame is None else int(end_frame)+1
+
+    # if not end_frame is None:
+    #     nrframes = int(end_frame)+1
+    # else:
+    #     nrframes = nrframes+1
     
-    if start_frame is None:
-        frame_i = 1
-    else:
-        frame_i = int(start_frame)
-    if not end_frame is None:
-        nrframes = int(end_frame)+1
-    else:
-        nrframes = nrframes+1
-        
+    if blend == 'loop':
+        blend_forward = True
+        blend_at = 0.4
+        blend_step = 0.1
+
+    try:
+        blend = float(blend)
+    except Exception:
+        print("Blend: " + blend + "  " + type(blend))
+
+
     frame = np.float32(PIL.Image.open(input_dir + '/%08d.%s' % (frame_i, image_type) ))
-    
+    # image = input_dir + f"/{frame_i:08d}.{image_type}"
+    # print(os.path.join(input_dir, f'/{frame_i:08d}.{image_type}'))
+    # frame = np.float32(PIL.Image.open(image))
+
+
 #     # --- With Guide?
 #     if args.guide is not None:
 #         frame_start_time = time.time()
@@ -452,87 +545,134 @@ def main(input_dir, output, image_type, model_path, model_name, octaves, octave_
 #         totaltime += difference
         
 #         print('>> GUIDE Frame Time: ' + str(int(later - frame_start_time)) + 's  ---  Total Time: ' + str(difference) + 's')
-#         print('***************************************')
-
-    # TODO: net.blobs.keys() we can change layer selection to alter the result! 
-
-#     frame = img
-#     frame_i = 0
-
-    h, w = frame.shape[:2]
-#     for i in range(frames):
+#         print('***********************os.path.join(
     print('nb frames: ', nrframes-1)
+    # message = ">> Begin dreaming.."
+
     for i in range(frame_i, nrframes):
         
         #Choosing Layer
         if layers == 'customloop': #loop over layers as set in layersloop array
-            endparam = layersloop[frame_i % len(layersloop)]
+            endparam = layersloop[(i-1) % len(layersloop)]
         else: #loop through layers one at a time until this specific layer
-            endparam = layers[frame_i % len(layers)]
+            endparam = layers[(i-1) % len(layers)]
             
             
         frame_start_time = time.time()
+        print('START FRAME ' + str(i) + ' of ' + str(nrframes-1))
 
-        frame = deepdream(net, frame, end=endparam, image_output=output + f"/{base_name}", save_image=f".{image_type}")
+        if guide_image is None:
+            # frame = deepdream(net, frame, image_type=image_type, verbose=verbose, iter_n=iterations, step_size=step_size, octave_n=octaves, octave_scale=octave_scale, 
+            # jitter=jitter, end=endparam)
+            frame = deepdream(net, frame, iter_n=iterations,octave_n=octaves, octave_scale=octave_scale, end=endparam, step_size = step_size, verbose=verbose, jitter=jitter,)
+        else:
+            # guide = np.float32(PIL.Image.open(guide_image))
+            print('Setting up Guide with selected image')
+            guide_features = prepare_guide(net, PIL.Image.open(guide_image), end=endparam)
+
+            frame = deepdream_guided(net, frame, verbose=verbose, iter_n = iterations, step_size = step_size, 
+                                    octave_n = octaves, octave_scale = octave_scale, jitter=jitter, end=endparam, objective_fn=objective_guide, guide_features=guide_features,)
+
+
+        # frame = deepdream(net, frame, iter_n=iterations,octave_n=octaves, octave_scale=octave_scale, end=endparam, step_size = step_size, verbose=verbose) #image_output=output_dir + f"/{base_name}", save_image=f".{image_type}")
 #         PIL.Image.fromarray(np.uint8(frame)).save("%s/frame-%04d-%s" % (image_output, frame_i, input_name))
         later = time.time()
-        difference = int(later - start_time)    
-        PIL.Image.fromarray(np.uint8(frame)).save(output + f"/{base_name}-{difference}s_{i:08d}.{image_type}")
+        difference = int(later - frame_start_time)    
         
         
+        # saveframe = output_dir + f"/dream_frame_{i:08d}.{image_type}"
+        saveframe = output_dir + "/dream_frame_%08d.%s" % (i, image_type)
 
+        PIL.Image.fromarray(np.uint8(frame)).save(saveframe)
+        print('DONE FRAME ' + str(i) + ' of ' + str(nrframes-1))
         
         totaltime += difference
         avgtime = (totaltime / (i))
-        print('FRAME ' + str(i) + ' of ' + str(nrframes-1))
         print('>> Frame Time: ' + str(int(later - frame_start_time)) + 's  ---  Total Time: ' +
               str(difference) + 's')
-        timeleft = avgtime * ((nrframes-1) - frame_i)        
+        timeleft = avgtime * ((nrframes-1) - i)        
         m, s = divmod(timeleft, 60)
         h, m = divmod(m, 60)
         print('>> Estimated Total Time Remaining: ' + str(timeleft) +
               's (' + "%d:%02d:%02d" % (h, m, s) + ')')
-        frame = nd.affine_transform(frame, [1-scale_coef,1-scale_coef,1], [h*scale_coef/2,w*scale_coef/2,0],
-                                    order=1)
-        frame_i += 1
+
+        # message += 'FRAME ' + str(i) + ' of ' + str(nrframes-1)
+        # message += '\n' + '>> Frame Time: ' + str(int(later - frame_start_time)) + 's  ---  Total Time: ' + str(difference) + 's'
+
+        # timeleft = avgtime * ((nrframes-1) - i)        
+        # m, s = divmod(timeleft, 60)
+        # h, m = divmod(m, 60)
+
+        # message += '\n' + '>> Estimated Total Time Remaining: ' + str(timeleft) + 's (' + "%d:%02d:%02d" % (h, m, s) + ')'
+        # message += '\n' + '***************************************'
+        # print(message)
+
+        
+        # frame = nd.affine_transform(frame, [1-scale_coef,1-scale_coef,1], [h*scale_coef/2,w*scale_coef/2,0],
+        #                             order=1)
+        # frame_i += 1
+        if i == nrframes-1:
+            break
+        newframe = input_dir + "/%08d.%s" % (i, image_type) #f'/{(i+1):08d}.{image_type}' 
+        if blend == 0:
+            frame = np.float32(PIL.Image.open(newframe))
+        else:
+            if blend == 'random':
+            	blendval=randint(5,10)/10.
+            elif blend == 'loop':
+                if blend_at > 1 - blend_step: blend_forward = False
+                elif blend_at <= 0.5: blend_forward = True
+                if blend_forward: blend_at += blend_step
+                else: blend_at -= blend_step
+                blendval = blend_at
+            else: blendval = float(blend)
+
+            frame = np.float32(morphPicture(saveframe, newframe, blendval))
+
+        # frame = np.float32(frame)
         print('***************************************')
         
     print('DeepDreams are made of cheese, who am I to diss a brie?')
-#     print('output> %s' % image_output)
 
     # Remove temporary parameters, we could keep this if someone wanted
 #     shutil.rmtree(tmpdir)
 
+
+def morphPicture(filename1,filename2,blend):
+	img1 = PIL.Image.open(filename1)
+	img2 = PIL.Image.open(filename2)
+
+	return PIL.Image.blend(img1, img2, blend)
+
 def extract_video(video, ext, frame_dir):
-    # output_dir = _output_video_dir(video)
-    # mkdir(output_dir)
-    # output = Popen(
-    #     "ffmpeg -loglevel quiet -i {} -f image2 {}/img_%4d.jpg".format(
-    #         video, output_dir), shell=True, stdout=PIPE).stdout.read()
+
     make_sure_path_exists(frame_dir)
-    print(Popen(f'ffmpeg -i {video} -f image2 {frame_dir}/%08d.{ext}', shell=True,
+    # print(Popen('ffmpeg -i ' + video + ' -f image2 ' + frame_dir + '/\%08d.' + ext, shell=True,
+    #                        stdout=PIPE).stdout.read())
+
+    # print(Popen('ffmpeg -i ' + video + ' -f image2 ' + frame_dir + '/%08d.' + ext, shell=True,
+    #                        stdout=PIPE).stdout.read())
+
+    print(Popen('avconv -i ' + video + ' -f image2 ' + frame_dir + '/%08d.' + ext, shell=True,
                            stdout=PIPE).stdout.read())
 
-    print(f'Frames created to {frame_dir}')
+    print('Frames created to ' + frame_dir)
 
 def create_video(frames_directory, original_video, ext, output_video,frame_rate=24):
-    # make_sure_path_exists(frame_dir)
 
-    # output = Popen((
-    #     f"ffmpeg -loglevel quiet -r {frame_rate} -f image2 -pattern_type glob -i {output_dir}/* {video}.mp4"),
-    #     shell=True, stdout=PIPE).stdout.read()
     
+    # output = Popen((
+    #     "./frames2movie.sh ffmpeg " + frames_directory + " " + original_video + " " + ext + " " + output_video),
+    #     shell=True, stdout=PIPE).stdout.read()
+    script_path = "/frames2movie.sh" if os.environ.get('DEEPDREAM_OUTPUT') else "./frames2movie.sh"
+
     output = Popen((
-        f"./frames2movie.sh ffmpeg {frames_directory} {original_video} {ext} {output_video}"),
+        script_path + " avconv " + frames_directory + " " + original_video + " " + ext + " " + output_video),
         shell=True, stdout=PIPE).stdout.read()
-        # "./3_frames2movie.sh [ffmpeg|avconv|mplayer] [frames_directory] [original_video_with_sound] [png|jpg]"
-    print("OUTPUT =", output)
+    print(output)
 
 
 if __name__ == '__main__':
-    # main(input_dir, output_dir, image_type, model_path, model_name, preview, octaves, octave_scale,
-    #      iterations, jitter, zoom, stepsize, blend, layers, guide_image, start_frame, end_frame, verbose,
-    #     base_name)
 
     parser = get_parser()
 
@@ -546,51 +686,86 @@ if __name__ == '__main__':
     except:
         sys.exit(0)
 
-    if not os.path.exists(args.model_path):
-        print("Model directory not found")
+    
+    input_dir = os.environ.get('DEEPDREAM_INPUT', args.input_dir)
+    output_dir = os.environ.get('DEEPDREAM_OUTPUT', args.output_dir)
+    docker_path = os.environ.get('DEEPDREAM_MODELS')
+    if docker_path:
+        model_path = args.model_path.replace('caffe', docker_path)
+
+
+
+#     ENV DEEPDREAM_OUTPUT /data/output_frames
+# ENV DEEPDREAM_INPUT /data/input_frames
+
+# ENV DEEPDREAM_MODELS /deepdream/caffe
+# ENV CAFFE_SCRIPTS /deepdream/caffe/scripts
+
+    if not os.path.exists(model_path):
+        print("Model directory not found : " + model_path)
         print("Please set the model_path to a correct caffe model directory")
         sys.exit(0)
 
-    model = os.path.join(args.model_path, args.model_name)
-    print(model)
+    model = os.path.join(model_path, args.model_name)
+    print("Model Path: " + model)
     if not os.path.exists(model):
         print("Model not found")
         print("Please set the model_name to a correct caffe model")
         print("or download one with for instance: ./caffe_dir/scripts/download_model_binary.py caffe_dir/models/bvlc_googlenet")
         sys.exit(0)
 
-    input_dir = args.input_dir
+    input_dir = args.input_dir 
     output_dir = args.output_dir
 
-    if args.extract:
-        
-        video_name, _ = os.path.splitext(os.path.basename(args.extract))
-        input_dir = os.path.join(input_dir, video_name)
-        output_dir = os.path.join(output_dir, video_name)
-        # extract_video(args.extract, args.image_type, input_dir)
+    if args.mode == 0:
+        print('>>> MODE: FULL RUN')
+    elif args.mode == 1:
+        print('>>> MODE: Extract frames ONLY')
+    elif args.mode == 2:
+        print('>>> MODE: Process deepdream algorithm on frames ONLY')
+    elif args.mode == 3:
+        print('>>> MODE: Create Video from frames ONLY')
 
+    if args.extract:
+        video_name, _ = os.path.splitext(os.path.basename(args.extract))
+        input_dir = os.path.join(input_dir, video_name + ('_guided' if args.guide_image else ''))
+        output_dir = os.path.join(output_dir, video_name + ('_guided' if args.guide_image else ''))
+        if args.mode == 0 or args.mode == 1: 
+            print('\nExtracting frames..')
+            extract_video(args.extract, args.image_type, input_dir)
+
+    print("Input Directory : " + input_dir)
+    print("Output Directory : " + output_dir)
+
+    if args.mode == 0 or args.mode == 2: 
+        print('\nStart dreaming..')
+
+        main(input_dir=input_dir, 
+            output_dir=output_dir, 
+            image_type=args.image_type, 
+            model_path=model_path, 
+            model_name=args.model_name, 
+            octaves=args.octaves, 
+            octave_scale=args.octavescale, 
+            iterations=args.iterations, 
+            jitter=args.jitter,
+            step_size=args.step_size, 
+            blend=args.blend, 
+            layers=args.layers, 
+            guide_image=args.guide_image, 
+            start_frame=args.start_frame, 
+            end_frame=args.end_frame, 
+            verbose=args.verbose)
+
+    # recreate the video
+    if args.mode == 0 or args.mode == 3:
+        print('\nExtraction frames..')
+
+        # if args.extract:
         t = str(time.time()).replace('.', '_')
         videos_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/dream_video")
         make_sure_path_exists(videos_dir)
-        output_video = os.path.join(videos_dir, f"{video_name}-DeepDream__{t}")
+        output_video = os.path.join(videos_dir, video_name + "-DeepDream" + ("_guided" if args.guide_image else '') + "__" + t)
 
-        create_video(input_dir, args.extract, args.image_type, output_video)
-
-    
-    # main(input_dir=input_dir, 
-    #     output_dir=output_dir, 
-    #     image_type=args.image_type, 
-    #     model_path=args.model_path, 
-    #     model_name=args.model_name, 
-    #     octaves=args.octaves, 
-    #     octavescale=args.octavescale, 
-    #     iterations=args.iterations, 
-    #     jitter=args.jitter,
-    #     stepsize=args.stepsize, 
-    #     blend=args.blend, 
-    #     layers=args.layers, 
-    #     guide_image=args.guide_image, 
-    #     start_frame=args.start_frame, 
-    #     end_frame=args.end_frame, 
-    #     verbose=args.verbose)
-
+        create_video(output_dir, args.extract, args.image_type, output_video)
+        print(output_dir)
