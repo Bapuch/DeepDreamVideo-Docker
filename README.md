@@ -122,7 +122,7 @@ sudo docker run -v $PWD/data:/data deepdream --input /data/inputs/tim-holman-cir
 
 sudo docker run -v $PWD/data:/data deepdream -e /data/videos/lions_small_b75.mkv --verbose 2 -itr 6 --blend 0.75
 
-sudo docker run -it --entrypoint bash deepdream
+sudo docker run -it --entrypoint bash -v $PWD/data:/data deepdream
 
 /media/papuch/DATAS4/Bigado/Missions/Louis_Gollensen_Deep_Dream_Video/Tutos/Video/lions_small_b75.mkv
 /media/papuch/DATAS4/Bigado/Missions/Louis_Gollensen_Deep_Dream_Video/Tutos/Video
@@ -130,3 +130,10 @@ sudo docker run -it --entrypoint bash deepdream
 
 
 sudo docker run -v $PWD/data:/data deepdream -e /data/videos/lions_small_b75.mkv --verbose 2 -itr 6 --blend 0.75
+
+
+sudo docker run -v $PWD/data:/data deepdream -e /data/videos/nature_1sm480b85.mkv --verbose 2 -itr 6 --blend 0.85 --layers 'inception_4c/output'
+
+
+sudo docker run -v $PWD/data:/data deepdream -e /data/videos/nature_1sm480b85.mkv --verbose 2 -itr 6 --blend 0.85 --layers 'inception_4c/output'
+

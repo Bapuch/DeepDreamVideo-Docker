@@ -27,6 +27,36 @@ from subprocess import Popen, PIPE
 import errno
 from random import randint
 
+def find_model(models_dir):
+    '''find_model will look through a list of folders in some parent models
+       directory, and check the folder for the prototext files. If both
+       are found for a randomly chosen model, it is returned.
+
+       note:: This model is currently not in use to select, since the models
+             would need testing. It is provided so we can implement this :)
+    '''
+    # Save everything to return to user
+    models = os.listdir(models_dir)
+    print('Found %s candidate models in %s' %(len(models), models_dir))
+
+    for i, model in enumerate(models):
+        print(str(i) + ' - ' + model)
+
+
+    while True:
+        choice = input("Enter the number of model (or press q to quit)")
+        if choice.upper == 'Q':
+            sys.exit(0)
+        try:
+            if choice in range(len(models)):
+                break
+        except Exception:
+            print('Wrong input! ' + str(choice) + " is invalid, please try again.")
+
+    direct_path = '' if os.environ.get('DEEPDREAM') else '.'
+    
+    print(Popen('python3 ' + direct_path + '/download_model_binary.py '+ os.path.join(models_dir, model[choice]), shell=True,
+                           stdout=PIPE).stdout.read())
 
 # -- Argument Parsing
 def get_parser():
@@ -769,3 +799,6 @@ if __name__ == '__main__':
 
         create_video(output_dir, args.extract, args.image_type, output_video)
         print(output_dir)
+
+    if args.mode == 4:
+        find_model(model_path)

@@ -18,6 +18,8 @@ RUN apt-get update && apt-get install -y wget unzip
 ADD . /deepdream/caffe/scripts
 ADD ./deepdream.py /deepdream.py
 ADD ./frames2movie.sh /frames2movie.sh
+ADD ./download_model_binary.py /download_model_binary.py
+
 
 RUN apt-get update && apt-get install -y libav-tools
 # RUN apt-get update && apt-get install -y mplayer
