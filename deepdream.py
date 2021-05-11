@@ -53,7 +53,7 @@ def find_model(models_dir):
     while True:
         choice = input("Enter the number of model (or press q to quit) :\n> ")
 
-        if choice.lower() == 'q':
+        if type(choice) == str and choice.lower() == 'q':
             sys.exit(0)
         try:
             if int(choice) in range(len(models)):
@@ -149,7 +149,7 @@ def get_parser():
         type=str,
         dest='model_path',
         required=False,
-        default='./caffe/models/bvlc_googlenet/',
+        default='caffe/models/bvlc_googlenet/',
         help='Model directory to use')
     parser.add_argument(
         '-m', '--model-name',
@@ -771,23 +771,24 @@ if __name__ == '__main__':
     input_dir = os.environ.get('DEEPDREAM_INPUT', args.input_dir)
     output_dir = os.environ.get('DEEPDREAM_OUTPUT', args.output_dir)
     docker_path = os.environ.get('DEEPDREAM_MODELS')
+    model_path = args.model_path
 
-    model_path = args.model_path.replace('caffe', docker_path) if docker_path else args.model_path
+    if model_path == 'caffe/models/bvlc_googlenet/' and docker_path:
+        model_path = model_path.replace('caffe', docker_path)
 
+    if model_path[-1] == "/": model_path = model_path[:-1]
+    if os.path.splitext(args.model_name)[0] != os.path.basename(model_path):
+        model_path = model_path.replace(os.path.basename(model_path), os.path.splitext(args.model_name)[0])
 
+    model = os.path.join(model_path, args.model_name)
 
-#     ENV DEEPDREAM_OUTPUT /data/output_frames
-# ENV DEEPDREAM_INPUT /data/input_frames
-
-# ENV DEEPDREAM_MODELS /deepdream/caffe
-# ENV CAFFE_SCRIPTS /deepdream/caffe/scripts
 
     if not os.path.exists(model_path):
         print("Model directory not found : " + model_path)
         print("Please set the model_path to a correct caffe model directory")
         sys.exit(0)
 
-    model = os.path.join(model_path, args.model_name)
+    
 
     print("\n******************************************************************************")
     print("Model Path: " + model)
