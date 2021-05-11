@@ -15,9 +15,10 @@ from IPython.display import clear_output, Image, display
 from google.protobuf import text_format
 
 import argparse
-import caffe
 import shutil
 import os
+os.environ["GLOG_minloglevel"] = "2"
+import caffe
 import sys
 import random
 import tempfile
@@ -36,6 +37,12 @@ def find_model(models_dir):
              would need testing. It is provided so we can implement this :)
     '''
     # Save everything to return to user
+    print(models_dir)
+    if 'models' in models_dir:
+        while models_dir[-6:] != 'models':
+            models_dir = os.path.dirname(models_dir)
+    print(models_dir)
+    
     models = os.listdir(models_dir)
     print('Found %s candidate models in %s' %(len(models), models_dir))
 
@@ -44,48 +51,93 @@ def find_model(models_dir):
 
 
     while True:
-        choice = input("Enter the number of model (or press q to quit)")
-        if choice.upper == 'Q':
+        choice = input("Enter the number of model (or press q to quit) :\n> ")
+
+        if choice.lower() == 'q':
             sys.exit(0)
         try:
-            if choice in range(len(models)):
+            if int(choice) in range(len(models)):
                 break
         except Exception:
-            print('Wrong input! ' + str(choice) + " is invalid, please try again.")
+            print('Wrong input! ' + choice + " is invalid, please try again.")
+
+    print('Downloading...')
 
     direct_path = '' if os.environ.get('DEEPDREAM') else '.'
+
+    model_path = os.path.join(models_dir, models[int(choice)])
     
-    print(Popen('python3 ' + direct_path + '/download_model_binary.py '+ os.path.join(models_dir, model[choice]), shell=True,
-                           stdout=PIPE).stdout.read())
+    Popen('python3 ' + direct_path + '/download_model_binary.py '+ model_path, shell=True,
+                           stdout=PIPE).stdout.read()
+    print('Done!')
+    model_name = '-'.join([md for md in os.listdir(model_path) if '.caffemodel' in md])
+    print('\nModel Path : ' + model_path)
+    print('Model Name : ' + model_name)
+
+    show_layers(model_path, model_name)
+
+
+def show_layers(model_path, model_name):
+    net_fn   = os.path.join(model_path, 'deploy.prototxt')
+    param_fn = os.path.join(model_path, model_name)
+    
+    model = caffe.io.caffe_pb2.NetParameter()
+    text_format.Merge(open(net_fn).read(), model)
+    model.force_backward = True
+    open('tmp.prototxt', 'w').write(str(model))
+    
+    net = caffe.Classifier('tmp.prototxt', param_fn) # the reference model has channels in BGR order instead of RGB
+    print("\n>>> LAYERS for Model : " + model_name)
+    print()
+    seq = list(net.blobs)
+    n_cols = 3
+    data = [seq[i:i+n_cols] for i in range(0, len(seq), n_cols)]
+
+    col_width = max(len(word) for row in data for word in row) + 2  # padding
+    for row in data:
+        print("".join(word.ljust(col_width) for word in row))
+
+
 
 # -- Argument Parsing
 def get_parser():
     parser = argparse.ArgumentParser(description="DeepDream Video with Caffe")
+    parser.add_argument(
+        '--mode',
+        type=int,
+        required=False,
+        help="""What action(s) to perform:\n- 0: (default) run all (create frames, dream and recreate the video)\n- 1: extract frames only\n- 2: run deepdream only (make sure frames are already where they should be)
+        \n- 3: make the video from already existing processed frames\n- 4: download a new model\n- 5: show layers (requires --model-name and --model-path if different from default)""",
+        default=0,
+        dest='mode',)
 
     parser.add_argument(
         '-i','--input',
         type=str,
         help='Input directory where extracted frames are stored',
-        required='--extract' not in sys.argv and '-e' not in sys.argv,
-        default='data/input_frames',
+        # required='--extract' not in sys.argv and '-e' not in sys.argv and (parser.parse_args().mode not in [0,1,2,3]),
+        required=False,
+        default='./data/input_frames',
         dest='input_dir')
 
     parser.add_argument(
         '-e','--extract',
         type=str,
         help='Path to video to process',
-        required='--input' not in sys.argv and '-i' not in sys.argv,
-        dest='extract',)
+        required=False,
+        # required=('--input' not in sys.argv and '-i' not in sys.argv) and (parser.parse_args().mode not in [0,1,2,3]),
+        dest='extract',
+        )
 
     parser.add_argument(
         '-o','--output',
         type=str,
         help='Output directory where processed frames are to be stored',
-        default='data/output_frames',
+        default='./data/output_frames',
         dest='output_dir')
 
     parser.add_argument(
-        '-it','--image_type',
+        '-it','--image-type',
         help='Specify whether frames will be jpg or png ',
         default='jpg',
         type=str,
@@ -93,14 +145,14 @@ def get_parser():
         dest='image_type')
 
     parser.add_argument(
-        '-p', '--model_path',
+        '-p', '--model-path',
         type=str,
         dest='model_path',
         required=False,
-        default='caffe/models/bvlc_googlenet/',
+        default='./caffe/models/bvlc_googlenet/',
         help='Model directory to use')
     parser.add_argument(
-        '-m', '--model_name',
+        '-m', '--model-name',
         type=str,
         required=False,
         dest='model_name',
@@ -155,10 +207,10 @@ def get_parser():
     parser.add_argument(
         '-l','--layers',
         nargs="+",
-        # type=str,
+        type=str,
         required=False,
-        help='Array of Layers to loop through. Default: ["customloop"] \
-        - or choose ie ["inception_4c/output"] for that single layer',
+        help='List of Layers to loop through. Default: "customloop" \
+        - or choose ie "inception_4c/output inception_4d/output" for those layers',
         default='customloop',
         dest='layers',)
     parser.add_argument(
@@ -190,13 +242,7 @@ def get_parser():
         default=None,
         dest='end_frame',)
     
-    parser.add_argument(
-        '--mode',
-        type=int,
-        required=False,
-        help="What action(s) to perform:\n- 0: (default) run all (create frames, dream and recreate the video)\n- 1: exctract frames only\n- 2: run deepdream only (make sure frames are already where they should be)\n- 3: make the video from already existing processed frames",
-        default=0,
-        dest='mode',)
+    
 
 
     return parser
@@ -677,28 +723,29 @@ def morphPicture(filename1,filename2,blend):
 def extract_video(video, ext, frame_dir):
 
     make_sure_path_exists(frame_dir)
-    # print(Popen('ffmpeg -i ' + video + ' -f image2 ' + frame_dir + '/\%08d.' + ext, shell=True,
-    #                        stdout=PIPE).stdout.read())
+    print(Popen('ffmpeg -i ' + video + ' -f image2 ' + frame_dir + '/%08d.' + ext, shell=True,
+                           stdout=PIPE).stdout.read())
 
     # print(Popen('ffmpeg -i ' + video + ' -f image2 ' + frame_dir + '/%08d.' + ext, shell=True,
     #                        stdout=PIPE).stdout.read())
 
-    print(Popen('avconv -i ' + video + ' -f image2 ' + frame_dir + '/%08d.' + ext, shell=True,
-                           stdout=PIPE).stdout.read())
+    print('avconv -i ' + video + ' -f image2 ' + frame_dir + '/%08d.' + ext)
+    # print(Popen('avconv -i ' + video + ' -f image2 ' + frame_dir + '/%08d.' + ext, shell=True,
+    #                        stdout=PIPE).stdout.read())
 
     print('Frames created to ' + frame_dir)
 
 def create_video(frames_directory, original_video, ext, output_video,frame_rate=24):
-
-    
-    # output = Popen((
-    #     "./frames2movie.sh ffmpeg " + frames_directory + " " + original_video + " " + ext + " " + output_video),
-    #     shell=True, stdout=PIPE).stdout.read()
     script_path = "/frames2movie.sh" if os.environ.get('DEEPDREAM_OUTPUT') else "./frames2movie.sh"
 
+    
     output = Popen((
-        script_path + " avconv " + frames_directory + " " + original_video + " " + ext + " " + output_video),
+        script_path + " ffmpeg " + frames_directory + " " + original_video + " " + ext + " " + output_video),
         shell=True, stdout=PIPE).stdout.read()
+
+    # output = Popen((
+    #     script_path + " avconv " + frames_directory + " " + original_video + " " + ext + " " + output_video),
+    #     shell=True, stdout=PIPE).stdout.read()
     print(output)
 
 
@@ -715,6 +762,10 @@ if __name__ == '__main__':
         args = parser.parse_args()
     except:
         sys.exit(0)
+
+    if args.mode in range(2):
+        if not args.extract:
+            help("MISSING ARGUMENT ERROR !\nArgument -e or --extract is required if --mode=0 or --mode=1")
 
     
     input_dir = os.environ.get('DEEPDREAM_INPUT', args.input_dir)
@@ -737,15 +788,16 @@ if __name__ == '__main__':
         sys.exit(0)
 
     model = os.path.join(model_path, args.model_name)
+
+    print("\n******************************************************************************")
     print("Model Path: " + model)
+
     if not os.path.exists(model):
         print("Model not found")
         print("Please set the model_name to a correct caffe model")
         print("or download one with for instance: ./caffe_dir/scripts/download_model_binary.py caffe_dir/models/bvlc_googlenet")
         sys.exit(0)
 
-    input_dir = args.input_dir 
-    output_dir = args.output_dir
 
     if args.mode == 0:
         print('>>> MODE: FULL RUN')
@@ -761,11 +813,13 @@ if __name__ == '__main__':
         input_dir = os.path.join(input_dir, video_name + ('_guided' if args.guide_image else ''))
         output_dir = os.path.join(output_dir, video_name + ('_guided' if args.guide_image else ''))
         if args.mode == 0 or args.mode == 1: 
+            print("******************************************************************************\n")
             print('\nExtracting frames..')
             extract_video(args.extract, args.image_type, input_dir)
-
+            print("\n******************************************************************************")
     print("Input Directory : " + input_dir)
     print("Output Directory : " + output_dir)
+    print("******************************************************************************\n")
 
     if args.mode == 0 or args.mode == 2: 
         print('\nStart dreaming..')
@@ -802,3 +856,6 @@ if __name__ == '__main__':
 
     if args.mode == 4:
         find_model(model_path)
+
+    if args.mode == 5:
+        show_layers(model_path, args.model_name)

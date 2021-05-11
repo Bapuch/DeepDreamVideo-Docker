@@ -14,6 +14,11 @@ LABEL MAINTAINER vsochat@stanford.edu
 # Unzip and wget dependencies
 RUN apt-get update && apt-get install -y wget unzip
 
+# # install ffmpeg
+# RUN apt-get install software-properties-common -y
+# RUN add-apt-repository ppa:mc3man/trusty-media -y
+# RUN apt-get update && apt-get dist-upgrade -y
+# RUN apt-get install ffmpeg -y
 
 ADD . /deepdream/caffe/scripts
 ADD ./deepdream.py /deepdream.py

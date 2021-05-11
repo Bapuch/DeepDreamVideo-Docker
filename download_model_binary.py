@@ -12,25 +12,6 @@ from six.moves import urllib
 required_keys = ['caffemodel', 'caffemodel_url']
 
 
-from caffe.io import caffe_pb2
-from caffe import Classifier
-from google.protobuf import text_format
-
-def get_layers(model_path, model_name):
-    net_fn   = os.path.join(model_path, 'deploy.prototxt')
-    param_fn = os.path.join(model_path, model_name)
-
-    model = caffe_pb2.NetParameter()
-    text_format.Merge(open(net_fn).read(), model)
-    model.force_backward = True
-    open('tmp.prototxt', 'w').write(str(model))
-
-    net = Classifier('tmp.prototxt', param_fn) # the reference model has channels in BGR order instead of RGB
-    print("LAYERS for model " + model_name)
-    print()
-    for k in net.blobs:
-        print(k)
-
 def reporthook(count, block_size, total_size):
     """
     From http://blog.moleculea.com/2012/10/04/urlretrieve-progres-indicator/
@@ -58,7 +39,7 @@ def parse_readme_frontmatter(dirname):
 
     bottom = lines.index('---', top + 1)
 
-    frontmatter = yaml.load('\n'.join(lines[top + 1:bottom]))
+    frontmatter = yaml.full_load('\n'.join(lines[top + 1:bottom]), )
 
     missing_keys = [key for key in required_keys if key not in frontmatter ]
     if missing_keys:
@@ -116,8 +97,5 @@ if __name__ == '__main__':
         if not model_checks_out():
             print('ERROR: model did not download correctly! Run this again.')
             sys.exit(1)
-
-    # Show layers:
-    get_layers(dirname, frontmatter['caffemodel'])
 
 
