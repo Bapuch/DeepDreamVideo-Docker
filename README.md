@@ -312,7 +312,7 @@ Nombre d'itérations
 
 ### -s, --stepsize
 Nombre d'itérations
-- **Valeur par défaut**: 10
+- **Valeur par défaut**: 1.5
 - valeur entière positive uniquement
 - parametre de la descente de gradient:
     - pour la normalization
@@ -320,7 +320,7 @@ Nombre d'itérations
 
 ### -b, --blend
 Technique de blending
-- **Valeur par défaut**: 10
+- **Valeur par défaut**: 0.5
 - Exemple: `"0.5"` (constant), `"loop"` (0.5-1.0), `"random"`
 
 The best results come from a well selected blending factor, used to blend each frame into the next, keeping consitancy between the frames and the dreamed up artefacts, but without the added dreamed artefacts overruling the original scene, or in the opposite case, switching too rapidly.
