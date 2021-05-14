@@ -559,32 +559,9 @@ def main(input_dir, output_dir, image_type, model_path, model_name, octaves, oct
     frame_start_time = time.time()
     totaltime = 0
 
-#     input_name = os.path.basename(image_input)
-#     img = np.float32(PIL.Image.open(image_input))
-    
-
-#     dreamy = deepdream(net, img)
-
-#     PIL.Image.fromarray(np.uint8(dreamy)).save("%s/dreamy-%s" % (image_output, input_name))
-    
-#     later = time.time()
-#     difference = int(later - start_time)
-#     totaltime += difference
-#     print('BASE FRAME ')
-#     print('>> Frame Time: ' + str(difference) + 's  ---  Total Time: ' + str(difference) + 's')
-#     print('***************************************')
     frame_i = 1 if start_frame is None else int(start_frame)
-    # if start_frame is None:
-    #     frame_i = 1
-    # else:
-    #     frame_i = int(start_frame)
 
     nrframes = (nrframes+1) if end_frame is None else int(end_frame)+1
-
-    # if not end_frame is None:
-    #     nrframes = int(end_frame)+1
-    # else:
-    #     nrframes = nrframes+1
     
     if blend == 'loop':
         blend_forward = True
@@ -603,31 +580,7 @@ def main(input_dir, output_dir, image_type, model_path, model_name, octaves, oct
     # frame = np.float32(PIL.Image.open(image))
 
 
-#     # --- With Guide?
-#     if args.guide is not None:
-#         frame_start_time = time.time()
-
-#         guide = np.float32(PIL.Image.open(args.guide))
-#         end = 'inception_3b/output'
-#         h, w = guide.shape[:2]
-#         src, dst = net.blobs['data'], net.blobs[end]
-#         src.reshape(1,3,h,w)
-#         src.data[0] = preprocess(net, guide)
-#         net.forward(end=end)
-#         guide_features = dst.data[0].copy()
-#         guided = deepdream(net, img, end=end, objective=objective_guide)
-#         print('GUIDE FRAME : saving..')
-#         PIL.Image.fromarray(np.uint8(guided)).save("%s/guided-%s" % (image_output, input_name))
-#         img = guided
-
-#         later = time.time()
-#         difference = int(later - start_time)
-#         totaltime += difference
-        
-#         print('>> GUIDE Frame Time: ' + str(int(later - frame_start_time)) + 's  ---  Total Time: ' + str(difference) + 's')
-#         print('***********************os.path.join(
     print('nb frames: ', nrframes-1)
-    # message = ">> Begin dreaming.."
 
     for i in range(frame_i, nrframes):
         
@@ -642,20 +595,15 @@ def main(input_dir, output_dir, image_type, model_path, model_name, octaves, oct
         print('START FRAME ' + str(i) + ' of ' + str(nrframes-1))
 
         if guide_image is None:
-            # frame = deepdream(net, frame, image_type=image_type, verbose=verbose, iter_n=iterations, step_size=step_size, octave_n=octaves, octave_scale=octave_scale, 
-            # jitter=jitter, end=endparam)
+
             frame = deepdream(net, frame, iter_n=iterations,octave_n=octaves, octave_scale=octave_scale, end=endparam, step_size = step_size, verbose=verbose, jitter=jitter,)
         else:
-            # guide = np.float32(PIL.Image.open(guide_image))
             print('Setting up Guide with selected image')
             guide_features = prepare_guide(net, PIL.Image.open(guide_image), end=endparam)
 
             frame = deepdream_guided(net, frame, verbose=verbose, iter_n = iterations, step_size = step_size, 
                                     octave_n = octaves, octave_scale = octave_scale, jitter=jitter, end=endparam, objective_fn=objective_guide, guide_features=guide_features,)
 
-
-        # frame = deepdream(net, frame, iter_n=iterations,octave_n=octaves, octave_scale=octave_scale, end=endparam, step_size = step_size, verbose=verbose) #image_output=output_dir + f"/{base_name}", save_image=f".{image_type}")
-#         PIL.Image.fromarray(np.uint8(frame)).save("%s/frame-%04d-%s" % (image_output, frame_i, input_name))
         later = time.time()
         difference = int(later - frame_start_time)    
         
@@ -676,21 +624,7 @@ def main(input_dir, output_dir, image_type, model_path, model_name, octaves, oct
         print('>> Estimated Total Time Remaining: ' + str(timeleft) +
               's (' + "%d:%02d:%02d" % (h, m, s) + ')')
 
-        # message += 'FRAME ' + str(i) + ' of ' + str(nrframes-1)
-        # message += '\n' + '>> Frame Time: ' + str(int(later - frame_start_time)) + 's  ---  Total Time: ' + str(difference) + 's'
 
-        # timeleft = avgtime * ((nrframes-1) - i)        
-        # m, s = divmod(timeleft, 60)
-        # h, m = divmod(m, 60)
-
-        # message += '\n' + '>> Estimated Total Time Remaining: ' + str(timeleft) + 's (' + "%d:%02d:%02d" % (h, m, s) + ')'
-        # message += '\n' + '***************************************'
-        # print(message)
-
-        
-        # frame = nd.affine_transform(frame, [1-scale_coef,1-scale_coef,1], [h*scale_coef/2,w*scale_coef/2,0],
-        #                             order=1)
-        # frame_i += 1
         if i == nrframes-1:
             break
         newframe = input_dir + "/%08d.%s" % (i, image_type) #f'/{(i+1):08d}.{image_type}' 
@@ -709,7 +643,6 @@ def main(input_dir, output_dir, image_type, model_path, model_name, octaves, oct
 
             frame = np.float32(morphPicture(saveframe, newframe, blendval))
 
-        # frame = np.float32(frame)
         print('***************************************')
         
     print('DeepDreams are made of cheese, who am I to diss a brie?')
@@ -730,9 +663,6 @@ def extract_video(video, ext, frame_dir):
     # print(Popen('ffmpeg -i ' + video + ' -f image2 ' + frame_dir + '/%08d.' + ext, shell=True,
     #                        stdout=PIPE).stdout.read())
 
-    # print(Popen('ffmpeg -i ' + video + ' -f image2 ' + frame_dir + '/%08d.' + ext, shell=True,
-    #                        stdout=PIPE).stdout.read())
-
     print('avconv -i ' + video + ' -f image2 ' + frame_dir + '/%08d.' + ext)
     print(Popen('avconv -i ' + video + ' -f image2 ' + frame_dir + '/%08d.' + ext, shell=True,
                            stdout=PIPE).stdout.read())
@@ -742,7 +672,6 @@ def extract_video(video, ext, frame_dir):
 def create_video(frames_directory, original_video, ext, output_video,frame_rate=24):
     script_path = "/frames2movie.sh" if os.environ.get('DEEPDREAM_OUTPUT') else "./frames2movie.sh"
 
-    
     # output = Popen((
     #     script_path + " ffmpeg " + frames_directory + " " + original_video + " " + ext + " " + output_video),
     #     shell=True, stdout=PIPE).stdout.read()
