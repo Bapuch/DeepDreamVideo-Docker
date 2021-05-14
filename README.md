@@ -269,7 +269,7 @@ inception_3b_pool_proj                             inception_3b_output          
 
 
 
-Pour revoir les layers du modèle:
+Pour revoir les layers du modèle: `--mode 5`
 ```bash
 docker run deepdream --mode 5 -m googlenet_finetune_web_car_iter_10000.caffemodel
 ```
@@ -279,10 +279,24 @@ La commande pour utiliser `googlenet_finetune_web_car_iter_10000.caffemodel` ave
 ```bash
 docker run -v $PWD/data:/data deepdream -e /data/videos/my_video.mp4 -itr 6 --blend 0.85 -m googlenet_finetune_web_car_iter_10000.caffemodel --layers inception_3a_5x5
 ```
+### Utiliser un modèle télécharger manuellement
 
+Il faudra:
+1. placer le modèle dans un dossier particulier (exemple: `models` )
+2. creer un sous dossier avec le nom du modèle (exemple: `models\my_model\`) et y placer les fichiers téléchargés
+Pour chaque commande
+3. attaché le volume `models` a docker avec `-v  $PWD/models:/models`
+4. préciser le chemin du dossier du modele avec `-p /models/my_model`
+5. préciser le nom complet du modèle avec `-m my_model.caffemodel`
+6. Obtenir la liste des layers du modèle avec `--mode 5`
+   - `docker run -v $PWD/models:/models deepdream --mode 5 -m my_model.caffemodel -p /models/my_model` 
+7. Préciser les layers à utiliser pour faire tourner deepdream:
+    ```bash
+    docker run -v $PWD/data:/data -v $PWD/models:/models deepdream -e /data/videos/my_video.mp4 -m my_model.caffemodel -p /models/my_model --layers layers1 layers2 [...]
+    ``` 
 
 # Autre commandes
-- Accèder au bash du container (avec le volum data attaché optionnellement)
+- Accèder au bash du container (avec le volume `data` attaché optionnellement)
 ```bash
 sudo docker run -it --entrypoint bash -v $PWD/data:/data deepdream
 ```
