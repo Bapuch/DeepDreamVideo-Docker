@@ -46,6 +46,26 @@ docker run -v $PWD/data:/data deepdream -e /data/videos/my_video.mp4 -itr 6 --bl
 docker run -v $PWD/data:/data deepdream -e /data/videos/my_video.mp4 -itr 6 --blend 0.85 --gi /data/guide_pictures/my_picture.jpg
 ```
 
+## Single Picture
+Pour tester l'effet des différents layers il est possible de tester une seule image à travers une liste de layers
+
+Example le modèle par défaut et la liste de layers par défaut
+```bash
+docker run -v $PWD/data:/data deepdream -sp /data/single_pictures/hulk.jpg
+```
+
+Example avec un modèle téléchargé manuellement
+```bash
+docker run -v $PWD/data:/data -v $PWD/models:/models deepdream -p models/places205CNN -m places205CNN_iter_300000_upgraded.caffemodel -sp /data/single_pictures/hulk.jpg --layers conv1 pool1 norm1 conv2 pool2 norm2 conv3 conv4 conv5 pool5 fc6 fc7 fc8
+```
+Le résultats produits sera le suivant:
+```
+
+```
+
+
+
+On peut aussi définir tous les autres hyper_params
 
 ## Obtenir plus de modèles: mode 4 et 5
 
@@ -168,6 +188,15 @@ Action(s) à faire
 >- 3: make the video from already existing processed frames
 >- 4: download a new model
 >- 5: show layers (requires --model-name and --model-path if different from default)
+
+
+### -sp, --single-picture
+Chemin de l'image
+- pas besoin de préciser --input
+- par defaut **output_dir**=`data/single_picture/<picture_name>/`
+- une image sera générer par layer
+  - les images seront nommé avec les differentes parametres utilisés
+
 ### -i, --input
 Chemin du dossiers où seront extrait les frames de la video
 - **Valeur par défaut**: "./data/input_frames"
