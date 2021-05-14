@@ -58,14 +58,23 @@ Example avec un modèle téléchargé manuellement
 ```bash
 docker run -v $PWD/data:/data -v $PWD/models:/models deepdream -p models/places205CNN -m places205CNN_iter_300000_upgraded.caffemodel -sp /data/single_pictures/hulk.jpg --layers conv1 pool1 norm1 conv2 pool2 norm2 conv3 conv4 conv5 pool5 fc6 fc7 fc8
 ```
-Le résultats produits sera le suivant:
+Dans cet exemple, on obtient les fichiers suivants:
+```
+single_pictures/
+┣ hulk/
+┃ ┣ dream_hulk_L-conv1_i-10_o-4_os-1.4_ss-1.5_j-32_(60sec).jpg
+┃ ┣ dream_hulk_L-conv2_i-10_o-4_os-1.4_ss-1.5_j-32_(189sec).jpg
+┃ ┣ dream_hulk_L-conv3_i-10_o-4_os-1.4_ss-1.5_j-32_(279sec).jpg
+┃ ┣ dream_hulk_L-conv4_i-10_o-4_os-1.4_ss-1.5_j-32_(345sec).jpg
+┃ ┣ dream_hulk_L-conv5_i-10_o-4_os-1.4_ss-1.5_j-32_(390sec).jpg
+┃ ┣ dream_hulk_L-norm1_i-10_o-4_os-1.4_ss-1.5_j-32_(61sec).jpg
+┃ ┣ dream_hulk_L-norm2_i-10_o-4_os-1.4_ss-1.5_j-32_(190sec).jpg
+┃ ┣ dream_hulk_L-pool1_i-10_o-4_os-1.4_ss-1.5_j-32_(61sec).jpg
+┃ ┣ dream_hulk_L-pool2_i-10_o-4_os-1.4_ss-1.5_j-32_(190sec).jpg
+┗ hulk.jpg
 ```
 
-```
-
-
-
-On peut aussi définir tous les autres hyper_params
+On peut aussi définir tous les autres hyper paramètres du modèle
 
 ## Obtenir plus de modèles: mode 4 et 5
 
