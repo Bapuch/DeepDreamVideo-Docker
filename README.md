@@ -1,159 +1,4 @@
 # Google Deepdream + Docker + Video
-# Parametres
-
-## Optionnels - run
-
-### --mode
-Action(s) à faire
-- **Valeur par défaut**: 0
-- Choix: de 0 à 5
-
->- 0: (default) run all (create frames, dream and recreate the video)
->- 1: extract frames only
->- 2: run deepdream only (make sure frames are already where they should be)
->- 3: make the video from already existing processed frames
->- 4: download a new model
->- 5: show layers (requires --model-name and --model-path if different from default)
-### -i, --input
-Chemin du dossiers où seront extrait les frames de la video
-- **Valeur par défaut**: "./data/input_frames"
-- requis pour les mode 0 et 1 si '--exctract' n'est pas donné
-
-### -o, --output
-Chemin où sera placée la deepdream video
-- **Valeur par défaut**: "./data/input_frames"
-
-### -e, --exctract
-Chemin de la vidéo d'origine
-- requis pour les mode 0 et 3 si '--input' n'est pas donné
-
-
-### -it, --image-type
-Extension des frames 
-- **Valeur par défaut**: "jpg"
-- Choix: 'jpg' ou 'png'
-
-### -v, --verbose
-Verbosité du programme, détails donnés dans le terminale 
-- **Valeur par défaut**: `2`
-- Valeurs: 1 ou 2 
-- `2`: donnera l'avancement pour chaque iterations de chaque octave
-- `1`: donnera seulement l'avancement par frame (moins detaillé)
-
-### -gi, --guide_image
-chemin pour l'image guide 
-
-
-### -sf, --start_frame
-Numero de la frame à partir de laquelle commencer le process
-- **par défaut**: *première frame*
-
-### -ef', --end_frame
-Numero de la dernière frame à processer 
-- **par défaut**: *dernière frame*
-
-
-## Optionnels hyper param
-
-              
-    
-
-
-### -p, --model-path
-Chemin du dossier où se trouve le model `.caffemodel`
-- **par défaut**: 'caffe/models/bvlc_googlenet/'
-
-### -m, --model-name
-Nom du model `.caffemodel`
-- **par défaut**: 'bvlc_googlenet.caffemodel'
-
-### -oct, --octaves
-Nombre d'octave
-- **Valeur par défaut**: 4
-- valeur entière positive uniquement
-- a un impact sur le computation time : 
-    - 1 super iteration par octave
-    - chaque super-iteration contient *iteration* iterations (10 par defaut)
-    - 4 * 10 = 40 iterations en tout avec les valeurs par défaut
-
-> pour chaque octave le frame est redimensionné selon l'*octave_scale* jusqu'a revenir à la diemension d'origine de l'image
-> si octave = 4 et octave_scale = 1.4 et iterations = 10:
-> 1ere octave dimension (383, 612) - 10 iterations
-> 2ème octave dimension (536, 857) - 10 iterations
-> 3ème octave dimension (750, 1200) - 10 iterations
-> 4ème octave dimension (1050, 1680) - 10 iterations
-
-
-
-plus il y aura d'octave plus les formes "rêvées" seront "blended", moins reconnaisbles mais bien presentes
-s'il y a peu d'octave on vera peu de chose ressortir
-
-### -octs, --octavescale
-valeur pour l'octave scale
-- **Valeur par défaut**: 1.4
-- nombre décimaux
-    - eviter les valeurs inférieures à 1
-- a un impact sur le computation time: 
-    - plus l'image est petite plus ça va vite
-    - si l'*octave_scale* est élevée, les premières frames seront très petites
-
-
-plus cette valeur est faible, plus on vera d'animaux apparaitre dans les plus petits details, plus elle grande plus les animaux seront surtout distinct sur les formes plus grandes
-
-
-### -itr, --iterations
-Nombre d'itérations
-- **Valeur par défaut**: 10
-- valeur entière positive uniquement
-- a un impact sur le computation time: autant d'itérations pour chaque octave
-
-
-### -j, --jitter
-Nombre d'itérations
-- **Valeur par défaut**: 10
-- valeur entière positive uniquement
-- parametre de la descente de gradient:
-    - range pour la valeur du shift choisi aléatoirement à chaque pas
-
-
-### -s, --stepsize
-Nombre d'itérations
-- **Valeur par défaut**: 10
-- valeur entière positive uniquement
-- parametre de la descente de gradient:
-    - pour la normalization
-
-
-### -b, --blend
-Technique de blending
-- **Valeur par défaut**: 10
-- Exemple: `"0.5"` (constant), `"loop"` (0.5-1.0), `"random"`
-
-The best results come from a well selected blending factor, used to blend each frame into the next, keeping consitancy between the frames and the dreamed up artefacts, but without the added dreamed artefacts overruling the original scene, or in the opposite case, switching too rapidly.
-
-blending can be set by `--blend` and can be a *float* (default 0.5), "random" (a random float between 0.5 and 1., where 1 means disregarding all info from the old frame and starting from scratch with dreaming up artefacts), and "loop" which loops back and forth from 0.5 to 1.0, as originally done in the Fear and Loathing clip.
-
-- every next unprocessed frame in the movie clip is blended with the previous processed frame before being "dreamed" on, moving the alpha from 0.5 to 1 and back again (so 50% previous image net created, 50% the movie frame, to taking 100% of the movie frame only). This takes care of "overfitting" on the frames and makes sure we don't iteratively build more and more "hallucinations" of the net and move away from the original movie clip.
-
-
-### -l, --layers
-List des layers
-- **Valeur par défaut**: `customloop`
-    - boucle sur une liste des layers prédéfinis pour le model `bvlc_googlenet.caffemodel` (ne fonctionne donc que pour ce modèle), un layer par frame. Voir liste ci-dessous.
-- Example: 
-    - `inception_4c/output`,
-    - `inception_3b output inception_4a output inception_4b output inception_4c`
-        
-
-> layers locked to moving upwards from inception_4c/output to inception_5b/output (only the output layers, as they are most sensitive to visualizing "objects", where reduce layers are more like "edge detectors") and back again
-        
-> N.B.: si `[customloop]` est choisi, voici la liste des layers concernés
-> layersloop = ['inception_4c/output', 'inception_4d/output',
-              'inception_4e/output', 'inception_5a/output',
-              'inception_5b/output', 'inception_5a/output',
-              'inception_4e/output', 'inception_4d/output',
-              'inception_4c/output']
-              
 
 # Installation
 
@@ -300,3 +145,165 @@ Pour chaque commande
 ```bash
 sudo docker run -it --entrypoint bash -v $PWD/data:/data deepdream
 ```
+
+
+# Liens utiles
+- [Visualizing every layer of GoogLeNet with Python](https://www.pyimagesearch.com/2015/08/03/deep-dream-visualizing-every-layer-of-googlenet/)
+- [Deep dream Data sets](http://sprawledoctopus.com/deepdream/datasets/)
+
+
+
+# Parametres
+
+## Optionnels - run
+
+### --mode
+Action(s) à faire
+- **Valeur par défaut**: 0
+- Choix: de 0 à 5
+
+>- 0: (default) run all (create frames, dream and recreate the video)
+>- 1: extract frames only
+>- 2: run deepdream only (make sure frames are already where they should be)
+>- 3: make the video from already existing processed frames
+>- 4: download a new model
+>- 5: show layers (requires --model-name and --model-path if different from default)
+### -i, --input
+Chemin du dossiers où seront extrait les frames de la video
+- **Valeur par défaut**: "./data/input_frames"
+- requis pour les mode 0 et 1 si '--exctract' n'est pas donné
+
+### -o, --output
+Chemin où sera placée la deepdream video
+- **Valeur par défaut**: "./data/input_frames"
+
+### -e, --exctract
+Chemin de la vidéo d'origine
+- requis pour les mode 0 et 3 si '--input' n'est pas donné
+
+
+### -it, --image-type
+Extension des frames 
+- **Valeur par défaut**: "jpg"
+- Choix: 'jpg' ou 'png'
+
+### -v, --verbose
+Verbosité du programme, détails donnés dans le terminale 
+- **Valeur par défaut**: `2`
+- Valeurs: 1 ou 2 
+- `2`: donnera l'avancement pour chaque iterations de chaque octave
+- `1`: donnera seulement l'avancement par frame (moins detaillé)
+
+### -gi, --guide_image
+chemin pour l'image guide 
+
+
+### -sf, --start_frame
+Numero de la frame à partir de laquelle commencer le process
+- **par défaut**: *première frame*
+
+### -ef', --end_frame
+Numero de la dernière frame à processer 
+- **par défaut**: *dernière frame*
+
+
+## Optionnels hyper param
+
+              
+    
+
+
+### -p, --model-path
+Chemin du dossier où se trouve le model `.caffemodel`
+- **par défaut**: 'caffe/models/bvlc_googlenet/'
+
+### -m, --model-name
+Nom du model `.caffemodel`
+- **par défaut**: 'bvlc_googlenet.caffemodel'
+
+### -oct, --octaves
+Nombre d'octave
+- **Valeur par défaut**: 4
+- valeur entière positive uniquement
+- a un impact sur le computation time : 
+    - 1 super iteration par octave
+    - chaque super-iteration contient *iteration* iterations (10 par defaut)
+    - 4 * 10 = 40 iterations en tout avec les valeurs par défaut
+
+> pour chaque octave le frame est redimensionné selon l'*octave_scale* jusqu'a revenir à la diemension d'origine de l'image
+> si octave = 4 et octave_scale = 1.4 et iterations = 10:
+> 1ere octave dimension (383, 612) - 10 iterations
+> 2ème octave dimension (536, 857) - 10 iterations
+> 3ème octave dimension (750, 1200) - 10 iterations
+> 4ème octave dimension (1050, 1680) - 10 iterations
+
+
+
+plus il y aura d'octave plus les formes "rêvées" seront "blended", moins reconnaisbles mais bien presentes
+s'il y a peu d'octave on vera peu de chose ressortir
+
+### -octs, --octavescale
+valeur pour l'octave scale
+- **Valeur par défaut**: 1.4
+- nombre décimaux
+    - eviter les valeurs inférieures à 1
+- a un impact sur le computation time: 
+    - plus l'image est petite plus ça va vite
+    - si l'*octave_scale* est élevée, les premières frames seront très petites
+
+
+plus cette valeur est faible, plus on vera d'animaux apparaitre dans les plus petits details, plus elle grande plus les animaux seront surtout distinct sur les formes plus grandes
+
+
+### -itr, --iterations
+Nombre d'itérations
+- **Valeur par défaut**: 10
+- valeur entière positive uniquement
+- a un impact sur le computation time: autant d'itérations pour chaque octave
+
+
+### -j, --jitter
+Nombre d'itérations
+- **Valeur par défaut**: 10
+- valeur entière positive uniquement
+- parametre de la descente de gradient:
+    - range pour la valeur du shift choisi aléatoirement à chaque pas
+
+
+### -s, --stepsize
+Nombre d'itérations
+- **Valeur par défaut**: 10
+- valeur entière positive uniquement
+- parametre de la descente de gradient:
+    - pour la normalization
+
+
+### -b, --blend
+Technique de blending
+- **Valeur par défaut**: 10
+- Exemple: `"0.5"` (constant), `"loop"` (0.5-1.0), `"random"`
+
+The best results come from a well selected blending factor, used to blend each frame into the next, keeping consitancy between the frames and the dreamed up artefacts, but without the added dreamed artefacts overruling the original scene, or in the opposite case, switching too rapidly.
+
+blending can be set by `--blend` and can be a *float* (default 0.5), "random" (a random float between 0.5 and 1., where 1 means disregarding all info from the old frame and starting from scratch with dreaming up artefacts), and "loop" which loops back and forth from 0.5 to 1.0, as originally done in the Fear and Loathing clip.
+
+- every next unprocessed frame in the movie clip is blended with the previous processed frame before being "dreamed" on, moving the alpha from 0.5 to 1 and back again (so 50% previous image net created, 50% the movie frame, to taking 100% of the movie frame only). This takes care of "overfitting" on the frames and makes sure we don't iteratively build more and more "hallucinations" of the net and move away from the original movie clip.
+
+### -l, --layers
+List des layers
+- **Valeur par défaut**: `customloop`
+    - boucle sur une liste des layers prédéfinis pour le model `bvlc_googlenet.caffemodel` (ne fonctionne donc que pour ce modèle), un layer par frame. Voir liste ci-dessous.
+- Example: 
+    - `inception_4c/output`,
+    - `inception_3b output inception_4a output inception_4b output inception_4c`
+        
+
+> layers locked to moving upwards from inception_4c/output to inception_5b/output (only the output layers, as they are most sensitive to visualizing "objects", where reduce layers are more like "edge detectors") and back again
+        
+> N.B.: si `[customloop]` est choisi, voici la liste des layers concernés
+> layersloop = ['inception_4c/output', 'inception_4d/output',
+              'inception_4e/output', 'inception_5a/output',
+              'inception_5b/output', 'inception_5a/output',
+              'inception_4e/output', 'inception_4d/output',
+              'inception_4c/output']
+        
