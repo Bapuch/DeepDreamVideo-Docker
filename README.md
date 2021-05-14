@@ -1,6 +1,6 @@
 # Google Deepdream + Docker + Video
 
-# Installation
+# 1. Installation
 
 ## Prérequis:
 - [Docker](https://docs.docker.com/get-docker/)
@@ -24,7 +24,7 @@ docker build -t deepdream .
 
 
 
-# Utilisation
+# 2. Utilisation
 
 > Il faut place la video d'origine dans le folder `data` (sous-dosser optionnel `videos`) pour qu'elle soit ensuite accessible dans docker
 > de meme pour l'image guide, elle doit se trouver dans le folder `data` (sous-dosser optionnel `guide_pictures`)
@@ -140,20 +140,20 @@ Pour chaque commande
     docker run -v $PWD/data:/data -v $PWD/models:/models deepdream -e /data/videos/my_video.mp4 -m my_model.caffemodel -p /models/my_model --layers layers1 layers2 [...]
     ``` 
 
-# Autre commandes
+## Autre commandes
 - Accèder au bash du container (avec le volume `data` attaché optionnellement)
 ```bash
 sudo docker run -it --entrypoint bash -v $PWD/data:/data deepdream
 ```
 
 
-# Liens utiles
+# 3. Liens utiles
 - [Visualizing every layer of GoogLeNet with Python](https://www.pyimagesearch.com/2015/08/03/deep-dream-visualizing-every-layer-of-googlenet/)
 - [Deep dream Data sets](http://sprawledoctopus.com/deepdream/datasets/)
 
 
 
-# Parametres
+# 4. Parametres
 
 ## Optionnels - run
 
