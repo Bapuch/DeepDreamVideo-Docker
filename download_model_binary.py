@@ -39,7 +39,7 @@ def parse_readme_frontmatter(dirname):
 
     bottom = lines.index('---', top + 1)
 
-    frontmatter = yaml.full_load('\n'.join(lines[top + 1:bottom]), )
+    frontmatter = yaml.safe_load('\n'.join(lines[top + 1:bottom]), )
 
     missing_keys = [key for key in required_keys if key not in frontmatter ]
     if missing_keys:

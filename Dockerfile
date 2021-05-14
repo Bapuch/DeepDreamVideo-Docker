@@ -1,9 +1,10 @@
-FROM python:3.7.7
+# FROM python:3.7.7
 
-# Additional updates to pip
-RUN pip install --upgrade pip && \
-    # pip install typing && \
-    pip install ptpython 
+# # Additional updates to pip
+# RUN pip install --upgrade pip && \
+#     # pip install typing && \
+#     pip install ptpython
+    
 
 
 FROM saturnism/deepdream
@@ -14,11 +15,25 @@ LABEL MAINTAINER vsochat@stanford.edu
 # Unzip and wget dependencies
 RUN apt-get update && apt-get install -y wget unzip
 
+# install python 3
+# RUN apt-get install software-properties-common -y
+# RUN add-apt-repository ppa:deadsnakes/ppa -y
+# RUN apt-get update && apt install python3.7 -y
+# RUN apt install python3-pip -y
+# RUN update-alternatives  --set python /usr/bin/python3.4
+# RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.4 1
+
+# RUN rm -f /usr/bin/python && ln -s /usr/bin/python /usr/bin/python3
+
 # # install ffmpeg
 # RUN apt-get install software-properties-common -y
 # RUN add-apt-repository ppa:mc3man/trusty-media -y
 # RUN apt-get update && apt-get dist-upgrade -y
 # RUN apt-get install ffmpeg -y
+
+# RUN pip3 install --upgrade pip && \
+#     pip3 install typing && \
+#     pip3 install ptpython
 
 ADD . /deepdream/caffe/scripts
 ADD ./deepdream.py /deepdream.py
@@ -30,6 +45,14 @@ RUN apt-get update && apt-get install -y libav-tools
 # RUN apt-get update && apt-get install -y mplayer
 # RUN apt-get install avconv -y
 # RUN apt install ffmpeg -y
+
+# RUN easy_install pip
+# RUN python -m pip install pyyaml
+
+# RUN pip install urllib3[secure]
+# RUN pip install --upgrade setuptools
+# RUN apt-get install python-yaml -y
+# RUN pip install PyYAML
 
 
 ADD ./run.sh /run.sh

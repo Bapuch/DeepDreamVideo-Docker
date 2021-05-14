@@ -31,6 +31,15 @@ if [ "avconv" == "$1" ]; then
     FPS=$($AVCONV -i "$3" 2>&1 | sed -n "s/.*, \(.*\) fp.*/\1/p")
     echo "FPS : $FPS  ---"
 
+# /frames2movie.sh avconv /data/output_frames/nature_720 /data/videos/nature_720.mkv jpg //data/dream_video/nature_720-DeepDream__1620765242_87
+# avconv 
+# avconv -i MyVideoFile.mp4 -vn -acodec copy MyAudioFile.aac
+
+# avconv -f image2 -i /data/output_frames/nature_720/dream_frame_%08d.jpg /data/dream_video/nature_720-t1.mkv
+
+    # "${AVCONV}" -i "$3" -vn -acodec -c:v copy "${TMPAUDIO}"
+    # "${AVCONV}" -f image2 -i "${INFILES}" -i "${TMPAUDIO}" -r "${FPS}" -b:v "${BITRATE}k" -c:v "${CODEC}" "${OUTFILE}" -y
+
 
     "${AVCONV}" -r "${FPS}" -i "${INFILES}" -b:v "${BITRATE}k" -c:v "${CODEC}" -vf "format=yuv420p" "${TMPVIDEO}" -y
     "${AVCONV}" -i "$3" -strict -2 "${TMPAUDIO}" -y

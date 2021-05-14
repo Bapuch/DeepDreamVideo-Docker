@@ -61,15 +61,17 @@ def find_model(models_dir):
         except Exception:
             print('Wrong input! ' + choice + " is invalid, please try again.")
 
-    print('Downloading...')
 
     direct_path = '' if os.environ.get('DEEPDREAM') else '.'
 
     model_path = os.path.join(models_dir, models[int(choice)])
+    print('Downloading... : ' + model_path)
+
     
-    Popen('python3 ' + direct_path + '/download_model_binary.py '+ model_path, shell=True,
-                           stdout=PIPE).stdout.read()
+    print(Popen('python ' + direct_path + '/download_model_binary.py '+ model_path, shell=True,
+                           stdout=PIPE).stdout.read())
     print('Done!')
+    print(os.listdir(model_path))
     model_name = '-'.join([md for md in os.listdir(model_path) if '.caffemodel' in md])
     print('\nModel Path : ' + model_path)
     print('Model Name : ' + model_name)
@@ -86,7 +88,7 @@ def show_layers(model_path, model_name):
     model.force_backward = True
     open('tmp.prototxt', 'w').write(str(model))
     
-    net = caffe.Classifier('tmp.prototxt', param_fn) # the reference model has channels in BGR order instead of RGB
+    net = caffe.Classifier('tmp.prototxt', param_fn) 
     print("\n>>> LAYERS for Model : " + model_name)
     print()
     seq = list(net.blobs)
@@ -97,6 +99,7 @@ def show_layers(model_path, model_name):
     for row in data:
         print("".join(word.ljust(col_width) for word in row))
 
+    os.remove('tmp.prototxt')
 
 
 # -- Argument Parsing
@@ -109,6 +112,7 @@ def get_parser():
         help="""What action(s) to perform:\n- 0: (default) run all (create frames, dream and recreate the video)\n- 1: extract frames only\n- 2: run deepdream only (make sure frames are already where they should be)
         \n- 3: make the video from already existing processed frames\n- 4: download a new model\n- 5: show layers (requires --model-name and --model-path if different from default)""",
         default=0,
+        choices=range(6),
         dest='mode',)
 
     parser.add_argument(
@@ -133,7 +137,7 @@ def get_parser():
         '-o','--output',
         type=str,
         help='Output directory where processed frames are to be stored',
-        default='./data/output_frames',
+        default='./data/input_frames',
         dest='output_dir')
 
     parser.add_argument(
@@ -218,7 +222,7 @@ def get_parser():
         type=int,
         required=False,
         help="verbosity [1-3]",
-        default=1,
+        default=2,
         dest='verbose',)
     parser.add_argument(
         '-gi', '--guide-image',
@@ -532,8 +536,8 @@ def main(input_dir, output_dir, image_type, model_path, model_name, octaves, oct
     make_sure_path_exists(output_dir)
 
     #Load DNN
-    net_fn   = model_path + 'deploy.prototxt'
-    param_fn = model_path + model_name
+    net_fn   = os.path.join(model_path, 'deploy.prototxt')
+    param_fn = os.path.join(model_path, model_name)
 
     model = caffe.io.caffe_pb2.NetParameter()
     text_format.Merge(open(net_fn).read(), model)
@@ -723,15 +727,15 @@ def morphPicture(filename1,filename2,blend):
 def extract_video(video, ext, frame_dir):
 
     make_sure_path_exists(frame_dir)
-    print(Popen('ffmpeg -i ' + video + ' -f image2 ' + frame_dir + '/%08d.' + ext, shell=True,
-                           stdout=PIPE).stdout.read())
+    # print(Popen('ffmpeg -i ' + video + ' -f image2 ' + frame_dir + '/%08d.' + ext, shell=True,
+    #                        stdout=PIPE).stdout.read())
 
     # print(Popen('ffmpeg -i ' + video + ' -f image2 ' + frame_dir + '/%08d.' + ext, shell=True,
     #                        stdout=PIPE).stdout.read())
 
     print('avconv -i ' + video + ' -f image2 ' + frame_dir + '/%08d.' + ext)
-    # print(Popen('avconv -i ' + video + ' -f image2 ' + frame_dir + '/%08d.' + ext, shell=True,
-    #                        stdout=PIPE).stdout.read())
+    print(Popen('avconv -i ' + video + ' -f image2 ' + frame_dir + '/%08d.' + ext, shell=True,
+                           stdout=PIPE).stdout.read())
 
     print('Frames created to ' + frame_dir)
 
@@ -739,14 +743,15 @@ def create_video(frames_directory, original_video, ext, output_video,frame_rate=
     script_path = "/frames2movie.sh" if os.environ.get('DEEPDREAM_OUTPUT') else "./frames2movie.sh"
 
     
-    output = Popen((
-        script_path + " ffmpeg " + frames_directory + " " + original_video + " " + ext + " " + output_video),
-        shell=True, stdout=PIPE).stdout.read()
-
     # output = Popen((
-    #     script_path + " avconv " + frames_directory + " " + original_video + " " + ext + " " + output_video),
+    #     script_path + " ffmpeg " + frames_directory + " " + original_video + " " + ext + " " + output_video),
     #     shell=True, stdout=PIPE).stdout.read()
-    print(output)
+
+    output = Popen((
+        script_path + " avconv " + frames_directory + " " + original_video + " " + ext + " " + output_video),
+        shell=True, stdout=PIPE).stdout.read()
+    print(script_path + " avconv " + frames_directory + " " + original_video + " " + ext + " " + output_video)
+    print()
 
 
 if __name__ == '__main__':
