@@ -17,13 +17,15 @@ from google.protobuf import text_format
 import argparse
 import shutil
 import os
+
+from traitlets.config.configurable import SingletonConfigurable
 os.environ["GLOG_minloglevel"] = "2"
 import caffe
 import sys
 import random
 import tempfile
 import time
-
+from datetime import timedelta
 from subprocess import Popen, PIPE
 import errno
 from random import randint
@@ -78,9 +80,27 @@ def find_model(models_dir):
 
     show_layers(model_path, model_name)
 
+def get_deploy_file(model_path, model_name):
+    p_list = [md for md in os.listdir(model_path) if '.prototxt' in md]
+    if p_list is None:
+        sys.exit("No .prototxt file found in " + str(model_path))
+    elif len(p_list) == 1:
+        return p_list[0]
+    else:
+        for f in p_list:
+            if model_name.replace(".caffemodel", "") in f:
+                return f
+            elif 'deploy' in f:
+                return f
+        return p_list[0]
+            
+
 
 def show_layers(model_path, model_name):
-    net_fn   = os.path.join(model_path, 'deploy.prototxt')
+
+    deploy_file = get_deploy_file(model_path, model_name)
+    print("Deploy File : " + deploy_file)
+    net_fn   = os.path.join(model_path, deploy_file)
     param_fn = os.path.join(model_path, model_name)
     
     model = caffe.io.caffe_pb2.NetParameter()
@@ -131,6 +151,15 @@ def get_parser():
         required=False,
         # required=('--input' not in sys.argv and '-i' not in sys.argv) and (parser.parse_args().mode not in [0,1,2,3]),
         dest='extract',
+        )
+    
+    parser.add_argument(
+        '-sp','--single-picture',
+        type=str,
+        help='Path to the picture to process',
+        required=False,
+        default=None,
+        dest='single_picture',
         )
 
     parser.add_argument(
@@ -530,13 +559,16 @@ def prepare_guide(net, image, end="inception_4c/output", maxW=224, maxH=224):
 
 
 def main(input_dir, output_dir, image_type, model_path, model_name, octaves, octave_scale,
-         iterations, jitter, step_size, blend, layers, guide_image, start_frame, end_frame, verbose):
+         iterations, jitter, step_size, blend, layers, guide_image, start_frame, end_frame, verbose, single_picture=None):
 
     # make_sure_path_exists(input_dir)
     make_sure_path_exists(output_dir)
 
     #Load DNN
-    net_fn   = os.path.join(model_path, 'deploy.prototxt')
+    deploy_file = get_deploy_file(model_path, model_name)
+    print("Deploy File : " + deploy_file)
+    net_fn   = os.path.join(model_path, deploy_file)
+    # net_fn   = os.path.join(model_path, 'deploy.prototxt')
     param_fn = os.path.join(model_path, model_name)
 
     model = caffe.io.caffe_pb2.NetParameter()
@@ -548,102 +580,160 @@ def main(input_dir, output_dir, image_type, model_path, model_name, octaves, oct
                            mean = np.float32([104.0, 116.0, 122.0]), # ImageNet mean, training set dependent
                            channel_swap = (2,1,0)) # the reference model has channels in BGR order instead of RGB
     
-    # let max nr of frames
-    nrframes =len([name for name in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, name))])
+    ##  ---------------------------- Single Picture ---------------------------------------------------------
+    if single_picture:
+        pic_name = os.path.splitext(os.path.basename(single_picture))[0]
+        list_layers = layersloop if layers == 'customloop' else layers
+        print('nb layers: ', len(list_layers))
 
-    if nrframes == 0:
-        print("no frames to process found")
-        sys.exit(0)
-    
-    # --- Dream!
-    frame_start_time = time.time()
-    totaltime = 0
+        frame = np.float32(PIL.Image.open(single_picture))
 
-    frame_i = 1 if start_frame is None else int(start_frame)
-
-    nrframes = (nrframes+1) if end_frame is None else int(end_frame)+1
-    
-    if blend == 'loop':
-        blend_forward = True
-        blend_at = 0.4
-        blend_step = 0.1
-
-    try:
-        blend = float(blend)
-    except Exception:
-        print("Blend: " + blend + "  " + type(blend))
-
-
-    frame = np.float32(PIL.Image.open(input_dir + '/%08d.%s' % (frame_i, image_type) ))
-    # image = input_dir + f"/{frame_i:08d}.{image_type}"
-    # print(os.path.join(input_dir, f'/{frame_i:08d}.{image_type}'))
-    # frame = np.float32(PIL.Image.open(image))
-
-
-    print('nb frames: ', nrframes-1)
-
-    for i in range(frame_i, nrframes):
-        
-        #Choosing Layer
-        if layers == 'customloop': #loop over layers as set in layersloop array
-            endparam = layersloop[(i-1) % len(layersloop)]
-        else: #loop through layers one at a time until this specific layer
-            endparam = layers[(i-1) % len(layers)]
-            
-            
         frame_start_time = time.time()
-        print('START FRAME ' + str(i) + ' of ' + str(nrframes-1))
+        totaltime = 0
 
-        if guide_image is None:
+        for i, endparam in enumerate(list_layers):
+            # endparam = layer
 
-            frame = deepdream(net, frame, iter_n=iterations,octave_n=octaves, octave_scale=octave_scale, end=endparam, step_size = step_size, verbose=verbose, jitter=jitter,)
-        else:
-            print('Setting up Guide with selected image')
-            guide_features = prepare_guide(net, PIL.Image.open(guide_image), end=endparam)
+            frame_start_time = time.time()
+            print('START FRAME ' + str(i) + ' (out of ' + str(len(list_layers)) + ') - With  layer ' + endparam )
 
-            frame = deepdream_guided(net, frame, verbose=verbose, iter_n = iterations, step_size = step_size, 
-                                    octave_n = octaves, octave_scale = octave_scale, jitter=jitter, end=endparam, objective_fn=objective_guide, guide_features=guide_features,)
+            if guide_image is None:
 
-        later = time.time()
-        difference = int(later - frame_start_time)    
+                frame = deepdream(net, frame, iter_n=iterations,octave_n=octaves, octave_scale=octave_scale, end=endparam, step_size = step_size, verbose=verbose, jitter=jitter,)
+            else:
+                print('Setting up Guide with selected image')
+                guide_features = prepare_guide(net, PIL.Image.open(guide_image), end=endparam)
+
+                frame = deepdream_guided(net, frame, verbose=verbose, iter_n = iterations, step_size = step_size, 
+                                        octave_n = octaves, octave_scale = octave_scale, jitter=jitter, end=endparam, objective_fn=objective_guide, guide_features=guide_features,)
+
+            later = time.time()
+            difference = int(later - frame_start_time)    
+            
+            
+            # saveframe = output_dir + f"/dream_frame_{i:08d}.{image_type}"
+            saveframe = output_dir + "/dream_" + pic_name + "_"  
+            saveframe += "L-" + endparam
+            saveframe += "_i-" + str(iterations)
+            saveframe += "_o-" + str(octaves)
+            saveframe += "_os-" + str(octave_scale)
+            saveframe += "_ss-" + str(step_size)
+            saveframe += "_j-" + str(jitter)
+            saveframe += "_(" + str(difference) + "sec)"
+            saveframe += "." + image_type
+
+            PIL.Image.fromarray(np.uint8(frame)).save(saveframe)
+            print('DONE FRAME ' + str(i) + ' (out of ' + str(len(list_layers)) + ') - With  layer ' + endparam )
+
+            
+            totaltime += difference
+            print('>> Frame Time: ' + str(timedelta(seconds=difference)) + 's  ---  Total Time: ' + str(timedelta(seconds=totaltime)) + 's')
+            avgtime = (totaltime / (i+1))
+            timeleft = avgtime * ((len(list_layers)) - i+1)        
+            m, s = divmod(timeleft, 60)
+            h, m = divmod(m, 60)
+            print('>> Estimated Total Time Remaining: ' + str(timeleft) + 's (' + "%d:%02d:%02d" % (h, m, s) + ')')
+
+
+    ## --------------------- Video -----------------------------
+    else:
+            
+        # let max nr of frames
+        nrframes =len([name for name in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, name))])
+
+        if nrframes == 0:
+            print("no frames to process found")
+            sys.exit(0)
         
+        # --- Dream!
+        frame_start_time = time.time()
+        totaltime = 0
+
+        frame_i = 1 if start_frame is None else int(start_frame)
+
+        nrframes = (nrframes+1) if end_frame is None else int(end_frame)+1
         
-        # saveframe = output_dir + f"/dream_frame_{i:08d}.{image_type}"
-        saveframe = output_dir + "/dream_frame_%08d.%s" % (i, image_type)
+        if blend == 'loop':
+            blend_forward = True
+            blend_at = 0.4
+            blend_step = 0.1
 
-        PIL.Image.fromarray(np.uint8(frame)).save(saveframe)
-        print('DONE FRAME ' + str(i) + ' of ' + str(nrframes-1))
-        
-        totaltime += difference
-        avgtime = (totaltime / (i))
-        print('>> Frame Time: ' + str(int(later - frame_start_time)) + 's  ---  Total Time: ' +
-              str(difference) + 's')
-        timeleft = avgtime * ((nrframes-1) - i)        
-        m, s = divmod(timeleft, 60)
-        h, m = divmod(m, 60)
-        print('>> Estimated Total Time Remaining: ' + str(timeleft) +
-              's (' + "%d:%02d:%02d" % (h, m, s) + ')')
+        try:
+            blend = float(blend)
+        except Exception:
+            print("Blend: " + blend + "  " + type(blend))
 
 
-        if i == nrframes-1:
-            break
-        newframe = input_dir + "/%08d.%s" % (i, image_type) #f'/{(i+1):08d}.{image_type}' 
-        if blend == 0:
-            frame = np.float32(PIL.Image.open(newframe))
-        else:
-            if blend == 'random':
-            	blendval=randint(5,10)/10.
-            elif blend == 'loop':
-                if blend_at > 1 - blend_step: blend_forward = False
-                elif blend_at <= 0.5: blend_forward = True
-                if blend_forward: blend_at += blend_step
-                else: blend_at -= blend_step
-                blendval = blend_at
-            else: blendval = float(blend)
+        frame = np.float32(PIL.Image.open(input_dir + '/%08d.%s' % (frame_i, image_type) ))
+        # image = input_dir + f"/{frame_i:08d}.{image_type}"
+        # print(os.path.join(input_dir, f'/{frame_i:08d}.{image_type}'))
+        # frame = np.float32(PIL.Image.open(image))
 
-            frame = np.float32(morphPicture(saveframe, newframe, blendval))
 
-        print('***************************************')
+        print('nb frames: ', nrframes-1)
+
+        for i in range(frame_i, nrframes):
+            
+            #Choosing Layer
+            if layers == 'customloop': #loop over layers as set in layersloop array
+                endparam = layersloop[(i-1) % len(layersloop)]
+            else: #loop through layers one at a time until this specific layer
+                endparam = layers[(i-1) % len(layers)]
+                
+                
+            frame_start_time = time.time()
+            print('START FRAME ' + str(i) + ' of ' + str(nrframes-1))
+
+            if guide_image is None:
+
+                frame = deepdream(net, frame, iter_n=iterations,octave_n=octaves, octave_scale=octave_scale, end=endparam, step_size = step_size, verbose=verbose, jitter=jitter,)
+            else:
+                print('Setting up Guide with selected image')
+                guide_features = prepare_guide(net, PIL.Image.open(guide_image), end=endparam)
+
+                frame = deepdream_guided(net, frame, verbose=verbose, iter_n = iterations, step_size = step_size, 
+                                        octave_n = octaves, octave_scale = octave_scale, jitter=jitter, end=endparam, objective_fn=objective_guide, guide_features=guide_features,)
+
+            later = time.time()
+            difference = int(later - frame_start_time)    
+            
+            
+            # saveframe = output_dir + f"/dream_frame_{i:08d}.{image_type}"
+            saveframe = output_dir + "/dream_frame_%08d.%s" % (i, image_type)
+
+            PIL.Image.fromarray(np.uint8(frame)).save(saveframe)
+            print('DONE FRAME ' + str(i) + ' of ' + str(nrframes-1))
+            
+            totaltime += difference
+            avgtime = (totaltime / (i))
+            print('>> Frame Time: ' + str(timedelta(seconds=difference)) + 's  ---  Total Time: ' +
+                str(timedelta(seconds=totaltime)) + 's')
+            timeleft = avgtime * ((nrframes-1) - i)        
+            m, s = divmod(timeleft, 60)
+            h, m = divmod(m, 60)
+            print('>> Estimated Total Time Remaining: ' + str(timeleft) +
+                's (' + "%d:%02d:%02d" % (h, m, s) + ')')
+
+
+            if i == nrframes-1:
+                break
+            newframe = input_dir + "/%08d.%s" % (i, image_type) #f'/{(i+1):08d}.{image_type}' 
+            if blend == 0:
+                frame = np.float32(PIL.Image.open(newframe))
+            else:
+                if blend == 'random':
+                    blendval=randint(5,10)/10.
+                elif blend == 'loop':
+                    if blend_at > 1 - blend_step: blend_forward = False
+                    elif blend_at <= 0.5: blend_forward = True
+                    if blend_forward: blend_at += blend_step
+                    else: blend_at -= blend_step
+                    blendval = blend_at
+                else: blendval = float(blend)
+
+                frame = np.float32(morphPicture(saveframe, newframe, blendval))
+
+            print('***************************************')
         
     print('DeepDreams are made of cheese, who am I to diss a brie?')
 
@@ -697,7 +787,7 @@ if __name__ == '__main__':
     except:
         sys.exit(0)
 
-    if args.mode in range(2):
+    if args.mode in range(2) and not args.single_picture:
         if not args.extract:
             help("MISSING ARGUMENT ERROR !\nArgument -e or --extract is required if --mode=0 or --mode=1")
 
@@ -711,7 +801,7 @@ if __name__ == '__main__':
         model_path = model_path.replace('caffe', docker_path)
 
     if model_path[-1] == "/": model_path = model_path[:-1]
-    if os.path.splitext(args.model_name)[0] != os.path.basename(model_path):
+    if "-model-path" not in sys.argv and "-p" not in sys.argv and os.path.splitext(args.model_name)[0] != os.path.basename(model_path):
         model_path = model_path.replace(os.path.basename(model_path), os.path.splitext(args.model_name)[0])
 
     model = os.path.join(model_path, args.model_name)
@@ -725,7 +815,7 @@ if __name__ == '__main__':
     
 
     print("\n******************************************************************************")
-    print("Model Path: " + model)
+    print("Model " + model)
 
     if not os.path.exists(model):
         print("Model not found")
@@ -733,6 +823,38 @@ if __name__ == '__main__':
         print("or download one with for instance: ./caffe_dir/scripts/download_model_binary.py caffe_dir/models/bvlc_googlenet")
         sys.exit(0)
 
+
+    if args.single_picture:
+        pic_name = os.path.splitext(os.path.basename(args.single_picture))[0]
+        if "-o" not in sys.argv and "--output" not in sys.argv:
+            output_dir = os.path.join("/data/single_pictures", pic_name)
+            if not docker_path:
+                output_dir = "." + output_dir
+
+        print("Single Picture : " + args.single_picture)
+        print("Output Directory : " + output_dir)
+
+        main(
+            single_picture=args.single_picture,
+            input_dir=input_dir, 
+            output_dir=output_dir, 
+            image_type=args.image_type, 
+            model_path=model_path, 
+            model_name=args.model_name, 
+            octaves=args.octaves, 
+            octave_scale=args.octavescale, 
+            iterations=args.iterations, 
+            jitter=args.jitter,
+            step_size=args.step_size, 
+            blend=args.blend, 
+            layers=args.layers, 
+            guide_image=args.guide_image, 
+            start_frame=args.start_frame, 
+            end_frame=args.end_frame, 
+            verbose=args.verbose
+        )
+
+        sys.exit(0)
 
     if args.mode == 0:
         print('>>> MODE: FULL RUN')
