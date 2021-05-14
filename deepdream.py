@@ -595,7 +595,7 @@ def main(input_dir, output_dir, image_type, model_path, model_name, octaves, oct
             # endparam = layer
 
             frame_start_time = time.time()
-            print('START FRAME ' + str(i) + ' (out of ' + str(len(list_layers)) + ') - With  layer ' + endparam )
+            print('\nSTART Process ' + str(i+1) + ' (out of ' + str(len(list_layers)) + ') - With  layer ' + endparam )
 
             if guide_image is None:
 
@@ -623,7 +623,7 @@ def main(input_dir, output_dir, image_type, model_path, model_name, octaves, oct
             saveframe += "." + image_type
 
             PIL.Image.fromarray(np.uint8(frame)).save(saveframe)
-            print('DONE FRAME ' + str(i) + ' (out of ' + str(len(list_layers)) + ') - With  layer ' + endparam )
+            print('DONE Process ' + str(i+1) + ' (out of ' + str(len(list_layers)) + ') - With  layer ' + endparam )
 
             
             totaltime += difference
@@ -682,7 +682,7 @@ def main(input_dir, output_dir, image_type, model_path, model_name, octaves, oct
                 
                 
             frame_start_time = time.time()
-            print('START FRAME ' + str(i) + ' of ' + str(nrframes-1))
+            print('\nSTART FRAME ' + str(i) + ' of ' + str(nrframes-1))
 
             if guide_image is None:
 
