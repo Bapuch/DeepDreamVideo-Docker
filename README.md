@@ -22,7 +22,13 @@ cd DeepDreamVideo-Docker
 docker build -t deepdream . 
 ```
 
-
+> To update repository:
+>```bash
+>cd <my_path></my_path>/DeepDreamVideo-Docker
+>```
+>```bash
+>git pull origin master
+>```
 
 # 2. Utilisation
 
