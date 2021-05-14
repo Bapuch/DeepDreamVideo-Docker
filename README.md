@@ -170,6 +170,7 @@ cd /path/to/my/directory
 1. Clone repo
 ```bash
 git clone https://github.com/Bapuch/DeepDreamVideo-Docker.git
+cd DeepDreamVideo-Docker
 ```
 2. Build the docker container
 ```bash
