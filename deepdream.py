@@ -753,8 +753,8 @@ def extract_video(video, ext, frame_dir):
     # print(Popen('ffmpeg -i ' + video + ' -f image2 ' + frame_dir + '/%08d.' + ext, shell=True,
     #                        stdout=PIPE).stdout.read())
 
-    print('avconv -i ' + video + ' -f image2 ' + frame_dir + '/%08d.' + ext)
-    print(Popen('avconv -i ' + video + ' -f image2 ' + frame_dir + '/%08d.' + ext, shell=True,
+    print('avconv -i ' + video + ' -f image2 -qscale 1 -aq 1 ' + frame_dir + '/%08d.' + ext)
+    print(Popen('avconv -i ' + video + ' -f image2 -qscale 1 -aq 1 ' + frame_dir + '/%08d.' + ext, shell=True,
                            stdout=PIPE).stdout.read())
 
     print('Frames created to ' + frame_dir)
